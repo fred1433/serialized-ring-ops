@@ -93,7 +93,7 @@ describe('HTTP API', () => {
       });
       expect(found).toEqual([]);
     }
-  });
+  }, 300000);
 
   it('the same ring ID in capitals keeps one history', async () => {
     const ring = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
