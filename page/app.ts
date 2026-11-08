@@ -57,13 +57,15 @@ const esc = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0
 
 let validatedAt: string | null = null;
 let parcels = 0;
-let refused: HistoryEntry[] = [];
+let refusals = 0;
+let scans: HistoryEntry[] = [];
 let scanning = false;
 
 /* The slip */
 $('slip-title').textContent = `Packing slip ${order} · Size ${slip.size}`;
 $('ship-to').innerHTML = [state.shipTo.name, state.shipTo.street, state.shipTo.city].map(esc).join('<br>');
 $('brand').textContent = `${state.brand} is a made-up brand.`;
+$('packer').textContent = `Packer: ${state.packer}`;
 $('expected-suffix').textContent = expected;
 $('expected-uuid').textContent = slip.expectedUuid;
 $('expected-meta').textContent = `Lot ${slip.lot}, size ${slip.size} submitted ${formatAt(slip.sizeSubmittedAt)}`;
@@ -116,7 +118,12 @@ function thud(text: string, kind: 'refused' | 'passed'): void {
 
 function nextHint(): string {
   const wrong = state.rings.find((r) => r.uuid !== slip.expectedUuid);
-  return refused.length === 0 && wrong ? `Now try ${suffix(wrong.uuid)}. It is the same size.` : '';
+  return refusals === 0 && wrong ? `Now try ${suffix(wrong.uuid)}. It is the same size.` : '';
+}
+
+function logScan(kind: string, detail: string): void {
+  scans.push({ at: new Date().toISOString(), kind, actor: state.packer, detail });
+  renderHistory();
 }
 
 function showResult(decision: ScanOutcome): void {
@@ -125,20 +132,22 @@ function showResult(decision: ScanOutcome): void {
   $('result-text').textContent = decision.message;
   if (decision.outcome === 'blocked') {
     thud('Blocked', 'refused');
-    refused.push({ at: new Date().toISOString(), kind: 'scan_refused', actor: state.packer, detail: decision.message });
+    refusals += 1;
+    logScan('scan_refused', decision.message);
     $('result-note').textContent = 'Both reservations are unchanged. The label stays printed; the parcel cannot leave. The refusal went into the packing history.';
-    renderHistory();
   } else if (decision.outcome === 'ready') {
     thud('Ready', 'passed');
     validatedAt = new Date().toISOString();
     parcels = 1;
     renderParcel();
+    logScan('scan_accepted', decision.message);
     $('result-note').textContent = `Parcels validated for this order: ${parcels}. ${nextHint()}`.trim();
   } else {
     thud('Ready', 'passed');
+    logScan('scan_repeated', decision.message);
     $('result-note').textContent = `Parcels validated for this order: ${parcels}. A second scan adds nothing.`;
   }
-  $('why-button').hidden = refused.length === 0;
+  $('why-button').hidden = refusals === 0;
   $('reset-button').hidden = false;
   if (box.getBoundingClientRect().bottom > innerHeight || box.getBoundingClientRect().top < 0) {
     box.scrollIntoView({ block: 'center', behavior: motionOk ? 'smooth' : 'auto' });
@@ -189,9 +198,10 @@ $('stickers').addEventListener('click', (event) => {
 
 /* Why this ring? */
 function renderHistory(): void {
-  const row = (h: HistoryEntry, refusal: boolean) =>
-    `<li class="${refusal ? 'refusal' : ''}"><time>${formatAt(h.at)}</time><span>${esc(h.detail)}</span><span class="who">${esc(h.actor[0].toUpperCase() + h.actor.slice(1))}</span></li>`;
-  $('history').innerHTML = state.why.history.map((h) => row(h, false)).join('') + refused.map((h) => row(h, true)).join('');
+  const tone: Record<string, string> = { scan_refused: 'refusal', scan_accepted: 'accepted', scan_repeated: 'accepted' };
+  const row = (h: HistoryEntry) =>
+    `<li class="${tone[h.kind] ?? ''}"><time>${formatAt(h.at)}</time><span>${esc(h.detail)}</span><span class="who">${esc(h.actor[0].toUpperCase() + h.actor.slice(1))}</span></li>`;
+  $('history').innerHTML = [...state.why.history, ...scans].map(row).join('');
 }
 
 $('why-title').textContent = state.why.title;
@@ -217,7 +227,8 @@ whyButton.addEventListener('click', () => {
 $('reset-button').addEventListener('click', () => {
   validatedAt = null;
   parcels = 0;
-  refused = [];
+  refusals = 0;
+  scans = [];
   renderParcel();
   renderHistory();
   stamp.className = 'stamp';

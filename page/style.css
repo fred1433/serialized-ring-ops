@@ -128,7 +128,9 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
 .sizer { margin: 0; padding: 7px 0; font-size: 13px; color: var(--toner-soft); border-bottom: 3px solid var(--toner); }
 
 .scan { padding-top: 12px; }
-.scan label { display: block; font-weight: 800; font-variation-settings: 'wdth' 80; font-size: 19px; margin-bottom: 5px; }
+.scan-label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 5px; }
+.scan label { font-weight: 800; font-variation-settings: 'wdth' 80; font-size: 19px; }
+.packer { font-size: 13px; color: var(--toner-soft); }
 .scan-row { display: flex; gap: 8px; }
 .scan input {
   flex: 1;
@@ -278,6 +280,8 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
 .history .who { color: #5d5416; text-align: right; }
 .history .refusal { color: var(--refuse); font-weight: 600; }
 .history .refusal .who { color: var(--refuse); font-weight: 400; }
+.history .accepted { color: var(--pass); font-weight: 600; }
+.history .accepted .who { color: var(--pass); font-weight: 400; }
 .held, .stops { margin: 12px 0 0; font-size: 14.5px; max-width: 70ch; }
 .stops { margin-top: 5px; color: #5d5416; }
 
@@ -297,7 +301,7 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
   font-size: clamp(44px, 6vw, 84px);
   line-height: .96;
 }
-.proof p { margin: 0 0 12px; font-size: 18px; line-height: 1.42; }
+.proof-text p { margin: 0 0 12px; font-size: 18px; line-height: 1.42; }
 .proof ol { margin: 0 0 14px; padding-left: 26px; font-size: 18px; line-height: 1.38; }
 .proof li { margin-bottom: 6px; }
 .roll {
