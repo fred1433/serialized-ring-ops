@@ -38,7 +38,7 @@ async function count(runs: number, trial: () => Promise<boolean>): Promise<numbe
 
 async function main(): Promise<void> {
   const db = new Db();
-  const [{ version }] = await db.query<{ version: string }>('show server_version');
+  const [{ version }] = await db.query<{ version: string }>(`select current_setting('server_version') as version`);
   const scenarios = [
     {
       key: 'forced_order',

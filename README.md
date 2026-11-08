@@ -27,7 +27,7 @@ docker compose run --rm tests   # full suite on PostgreSQL; fails under 95% cove
 docker compose run --rm race    # replays the races, writes reports/race-report.json
 ```
 
-Stop everything with `docker compose down`.
+Stop everything with `docker compose down`. On a machine with the standalone binary, `docker-compose` takes the same arguments.
 
 `reports/coverage/` and `reports/race-report.json` hold the recorded results the page prints. To run without Docker, set `DATABASE_URL` to an empty PostgreSQL database you don't mind wiping, then use `npm test` and `npm run race`. `src/main.ts`, the server start, is the one file left out of coverage.
 
@@ -72,7 +72,7 @@ A wrong scan blocks validation of the parcel. The label may already exist, and i
 | Amazon | Left out of this slice |
 | Bluetooth pairing | Out of scope; the flow stops at the eligibility answer of `GET /units/:uuid/pair-check` |
 
-Packing history is written to an append-only table by the application code. No test proves a database role can't alter it, so this repository doesn't call it immutable.
+Packing history is only ever inserted into by the application code. No test proves a database role can't alter it, so this repository promises nothing more than that.
 
 ## API
 
