@@ -23,8 +23,8 @@ curl -s localhost:4104/orders/104/why
 ## Check it
 
 ```
-docker compose run --rm tests   # full suite on PostgreSQL; fails under 95% coverage
-docker compose run --rm race    # replays the races, writes reports/race-report.json
+docker compose run --build --rm tests   # full suite on PostgreSQL; fails under 95% coverage
+docker compose run --build --rm race    # replays the races, writes reports/race-report.json
 ```
 
 Stop everything with `docker compose down`. On a machine with the standalone binary, `docker-compose` takes the same arguments.

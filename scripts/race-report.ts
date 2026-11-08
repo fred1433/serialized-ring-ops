@@ -88,7 +88,7 @@ async function main(): Promise<void> {
     recordedAt: new Date().toISOString(),
     commit: headCommit(),
     postgres: version,
-    command: 'docker compose run --rm race',
+    command: 'docker compose run --build --rm race',
     scenarios,
     witness: {
       title: 'Same test, with the queue read backwards on purpose',

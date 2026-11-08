@@ -17,6 +17,7 @@ services:
 
   app:
     build: .
+    image: serialized-ring-ops
     command: npm start
     environment:
       DATABASE_URL: postgres://ring:ring@db:5432/ring_ops
@@ -29,6 +30,7 @@ services:
 
   tests:
     build: .
+    image: serialized-ring-ops
     profiles: ["proof"]
     command: npm test
     environment:
@@ -41,6 +43,7 @@ services:
 
   race:
     build: .
+    image: serialized-ring-ops
     profiles: ["proof"]
     command: npm run race
     environment:
