@@ -1,12 +1,12 @@
 {
-  "recordedAt": "2026-11-08T13:54:37.050Z",
-  "commit": "379136014fa71d92d7e5c1334cca41c5301a0796",
+  "recordedAt": "2026-11-08T15:28:18.851Z",
+  "commit": "96381abd5c9074f9de1779e5d49cebfa2f4a2571",
   "postgres": "17.11",
   "command": "docker compose run --build --rm race",
   "scenarios": [
     {
       "key": "forced_order",
-      "title": "The later order's connection moves first",
+      "title": "Test orders #501 and #502: the later one's connection moves first",
       "expectation": "The earlier order gets the ring, the later one waits, one reservation exists.",
       "passed": 50,
       "runs": 50
@@ -36,6 +36,13 @@
       "key": "open_race",
       "title": "Twelve orders hit one ring with no forced order",
       "expectation": "One reservation, eleven orders waiting.",
+      "passed": 50,
+      "runs": 50
+    },
+    {
+      "key": "size_against_cancel",
+      "title": "A size and a cancel hit one order together",
+      "expectation": "No cancelled order holds a ring and no ring is stranded.",
       "passed": 50,
       "runs": 50
     }
