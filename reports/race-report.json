@@ -1,0 +1,48 @@
+{
+  "recordedAt": "2026-11-08T13:54:37.050Z",
+  "commit": "379136014fa71d92d7e5c1334cca41c5301a0796",
+  "postgres": "17.11",
+  "command": "docker compose run --build --rm race",
+  "scenarios": [
+    {
+      "key": "forced_order",
+      "title": "The later order's connection moves first",
+      "expectation": "The earlier order gets the ring, the later one waits, one reservation exists.",
+      "passed": 50,
+      "runs": 50
+    },
+    {
+      "key": "stock_order",
+      "title": "Older ring failed QA, two eligible rings of different dates",
+      "expectation": "The older of the two eligible rings is given.",
+      "passed": 50,
+      "runs": 50
+    },
+    {
+      "key": "rollback_release",
+      "title": "The lock holder rolls back while another connection waits",
+      "expectation": "The waiting connection looks again and serves the ring.",
+      "passed": 50,
+      "runs": 50
+    },
+    {
+      "key": "cancel_handover",
+      "title": "The first order cancels",
+      "expectation": "The waiting order gets the ring without sending its size again.",
+      "passed": 50,
+      "runs": 50
+    },
+    {
+      "key": "open_race",
+      "title": "Twelve orders hit one ring with no forced order",
+      "expectation": "One reservation, eleven orders waiting.",
+      "passed": 50,
+      "runs": 50
+    }
+  ],
+  "witness": {
+    "title": "Same test, with the queue read backwards on purpose",
+    "runs": 50,
+    "failed": 50
+  }
+}

@@ -1,5 +1,5 @@
 // <define:__COVERAGE__>
-var define_COVERAGE_default = { lines: { total: 460, covered: 460, skipped: 0, pct: 100 }, statements: { total: 513, covered: 512, skipped: 0, pct: 99.8 }, functions: { total: 96, covered: 96, skipped: 0, pct: 100 }, branches: { total: 96, covered: 94, skipped: 0, pct: 97.91 }, branchesTrue: { total: 0, covered: 0, skipped: 0, pct: 100 } };
+var define_COVERAGE_default = { lines: { total: 460, covered: 460, skipped: 0, pct: 100 }, statements: { total: 513, covered: 513, skipped: 0, pct: 100 }, functions: { total: 96, covered: 96, skipped: 0, pct: 100 }, branches: { total: 96, covered: 94, skipped: 0, pct: 97.91 }, branchesTrue: { total: 0, covered: 0, skipped: 0, pct: 100 } };
 
 // <define:__DEMO_STATE__>
 var define_DEMO_STATE_default = {
@@ -138,6 +138,56 @@ var define_DEMO_STATE_default = {
   ]
 };
 
+// <define:__RACE_REPORT__>
+var define_RACE_REPORT_default = {
+  recordedAt: "2026-11-08T13:54:37.050Z",
+  commit: "379136014fa71d92d7e5c1334cca41c5301a0796",
+  postgres: "17.11",
+  command: "docker compose run --build --rm race",
+  scenarios: [
+    {
+      key: "forced_order",
+      title: "The later order's connection moves first",
+      expectation: "The earlier order gets the ring, the later one waits, one reservation exists.",
+      passed: 50,
+      runs: 50
+    },
+    {
+      key: "stock_order",
+      title: "Older ring failed QA, two eligible rings of different dates",
+      expectation: "The older of the two eligible rings is given.",
+      passed: 50,
+      runs: 50
+    },
+    {
+      key: "rollback_release",
+      title: "The lock holder rolls back while another connection waits",
+      expectation: "The waiting connection looks again and serves the ring.",
+      passed: 50,
+      runs: 50
+    },
+    {
+      key: "cancel_handover",
+      title: "The first order cancels",
+      expectation: "The waiting order gets the ring without sending its size again.",
+      passed: 50,
+      runs: 50
+    },
+    {
+      key: "open_race",
+      title: "Twelve orders hit one ring with no forced order",
+      expectation: "One reservation, eleven orders waiting.",
+      passed: 50,
+      runs: 50
+    }
+  ],
+  witness: {
+    title: "Same test, with the queue read backwards on purpose",
+    runs: 50,
+    failed: 50
+  }
+};
+
 // page/app.ts
 import { checkScan, formatAt, orderLabel, suffix } from "./shared.js";
 
@@ -274,7 +324,7 @@ function barcodeSvg(text, height = 48) {
 // page/app.ts
 var REPO = "https://github.com/fred1433/serialized-ring-ops";
 var state = define_DEMO_STATE_default;
-var report = null;
+var report = define_RACE_REPORT_default;
 var coverage = define_COVERAGE_default;
 var { slip } = state;
 var order = orderLabel(slip.orderId);
