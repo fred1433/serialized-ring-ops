@@ -13,8 +13,10 @@ import {
   ORDER_B,
   rightWinner,
   rollbackRelease,
+  sizeAgainstCancel,
   stockOrder,
 } from '../test/support/scenarios';
+import { services } from '../test/support/app';
 
 const RUNS = Number(process.env.RACE_RUNS ?? 50);
 
@@ -42,7 +44,7 @@ async function main(): Promise<void> {
   const scenarios = [
     {
       key: 'forced_order',
-      title: 'The later order\'s connection moves first',
+      title: `Test orders #${ORDER_A} and #${ORDER_B}: the later one's connection moves first`,
       expectation: 'The earlier order gets the ring, the later one waits, one reservation exists.',
       passed: await count(RUNS, async () => rightWinner(await forcedOrder(db))),
     },
@@ -80,6 +82,19 @@ async function main(): Promise<void> {
       passed: await count(RUNS, async () => {
         const o = await openRace(db);
         return o.activeReservations === 1 && o.waiting.length === 11;
+      }),
+    },
+    {
+      key: 'size_against_cancel',
+      title: 'A size and a cancel hit one order together',
+      expectation: 'No cancelled order holds a ring and no ring is stranded.',
+      passed: await count(RUNS, async () => {
+        const { reservations } = services(db);
+        const found = await sizeAgainstCancel(db, {
+          size: (id, size) => reservations.submitSize(id, size),
+          cancel: (id) => reservations.cancel(id),
+        });
+        return found.length === 0;
       }),
     },
   ].map((s) => ({ ...s, runs: RUNS }));

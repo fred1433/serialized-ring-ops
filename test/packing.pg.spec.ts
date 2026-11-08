@@ -105,32 +105,87 @@ describe('packing on PostgreSQL', () => {
     const slip = await s.packing.slip(ORDER);
     expect(slip.sizerDeliveredAt).not.toBeNull();
     expect(slip.deliveredAt).toBeNull();
-    expect(await s.packing.pairCheck(RING_OK)).toEqual({ eligible: false, status: 'reserved' });
+    expect(await s.packing.pairingEligibility(RING_OK)).toEqual({ eligible: false, status: 'reserved' });
     await s.packing.scan(ORDER, RING_OK, PACKER);
     await s.packing.handOff(ORDER, PACKER);
     await s.packing.sizerDelivered(ORDER);
     expect((await s.packing.slip(ORDER)).deliveredAt).toBeNull();
-    expect((await s.packing.pairCheck(RING_OK)).eligible).toBe(false);
+    expect((await s.packing.pairingEligibility(RING_OK)).eligible).toBe(false);
   });
 
-  it('pair-check answers eligible only after the ring itself is delivered', async () => {
+  it('eligibility answers yes only after the ring itself is delivered', async () => {
     await s.packing.scan(ORDER, RING_OK, PACKER);
     await s.packing.handOff(ORDER, PACKER);
     await s.packing.ringDelivered(ORDER);
-    expect(await s.packing.pairCheck(RING_OK)).toEqual({ eligible: true, status: 'delivered' });
-    await expect(s.packing.pairCheck(uuidOf(404))).rejects.toThrow(/No ring/);
+    expect(await s.packing.pairingEligibility(RING_OK)).toEqual({ eligible: true, status: 'delivered' });
+    await expect(s.packing.pairingEligibility(uuidOf(404))).rejects.toThrow(/No ring/);
   });
 
   it('why this ring: only from the database', async () => {
     const answer = await s.packing.why(ORDER);
-    expect(answer.line).toContain('Order #104 got …7C21, the last size 8 ring ready to ship');
-    expect(answer.line).toContain('Order #105 waits');
-    expect(answer.history.map((h) => h.kind)).toEqual(['manifest', 'intake', 'qa', 'size', 'reserved']);
+    expect(answer.line).toBe(
+      'Order #104 sent its size on Nov 3, 09:12 UTC and has held …7C21 since Nov 3, 09:12 UTC. No size 8 ring is free now. Order #105 sent its size later, on Nov 3, 16:40 UTC, and waits for the next ring.',
+    );
+    expect(answer.history.map((h) => h.kind)).toEqual(['manifest', 'intake', 'qa', 'sizer_delivered', 'size', 'reserved', 'label']);
     await expect(s.packing.why(105)).rejects.toThrow(/no ring reserved/);
+  });
+
+  it('why this ring tells no past it did not record: order #099 was not given the last ring', async () => {
+    const { line } = await s.packing.why(99);
+    expect(line).not.toMatch(/last/);
+    expect(line).toContain('has held …3A90 since Oct 28, 17:20 UTC. No size 8 ring is free now.');
+  });
+
+  it('a refused scan shows under the order with the ID scanned, and stays out of that other ring\'s history', async () => {
+    const before = await s.packing.history(RING_OTHER);
+    await s.packing.scan(ORDER, RING_OTHER, PACKER);
+    await s.packing.scan(ORDER, 'not-a-ring', PACKER);
+    const refused = (await s.packing.why(ORDER)).history.filter((h) => h.kind === 'scan_refused');
+    expect(refused.map((h) => h.scanned)).toEqual([RING_OTHER, 'not-a-ring']);
+    expect(refused[0].actor).toBe(PACKER);
+    expect(await s.packing.history(RING_OTHER)).toEqual(before);
+  });
+
+  it('a repeated scan shows under the order too', async () => {
+    await s.packing.scan(ORDER, RING_OK, PACKER);
+    await s.packing.scan(ORDER, RING_OK, PACKER);
+    const kinds = (await s.packing.why(ORDER)).history.map((h) => h.kind);
+    expect(kinds).toEqual(expect.arrayContaining(['scan_accepted', 'scan_repeated']));
+  });
+
+  it('a label is not printed twice, and keeps its date', async () => {
+    const ring = uuidOf(7);
+    await db.pool.query(`delete from size_requests where order_id = 105`);
+    await addRing(s, ring, '2026-11-05T08:00:00Z');
+    await addOrder(db, 700);
+    await s.reservations.submitSize(700, 8);
+    s.clock.set('2026-11-08T10:00:00Z');
+    const first = await s.packing.createLabel(700, PACKER);
+    const date = (await s.packing.slip(700)).labelCreatedAt;
+    s.clock.set('2026-11-08T11:00:00Z');
+    expect(await s.packing.createLabel(700, PACKER)).toBe(first);
+    expect(s.printer.printed).toEqual([first]);
+    expect((await s.packing.slip(700)).labelCreatedAt).toEqual(date);
+    const [{ n }] = await db.query<{ n: number }>(`select count(*)::int as n from packing_events where order_id = 700 and kind = 'label'`);
+    expect(n).toBe(1);
+  });
+
+  it('a cancelled order gets no label and no scan', async () => {
+    await s.reservations.cancel(99);
+    await expect(s.packing.createLabel(99, PACKER)).rejects.toThrow(/cancelled/);
+    await expect(s.packing.scan(99, RING_OTHER, PACKER)).rejects.toThrow(/cancelled/);
+    expect(s.printer.printed).toEqual([]);
+  });
+
+  it('a label can come before the size, with no ring attached yet', async () => {
+    await addOrder(db, 701);
+    await expect(s.packing.createLabel(701, PACKER)).resolves.toContain('701');
+    await expect(s.packing.createLabel(9999, PACKER)).rejects.toThrow(/No such order/);
   });
 
   it('refuses unknown orders everywhere', async () => {
     await expect(s.packing.slip(9999)).rejects.toThrow(/No such order/);
+    expect(await s.packing.history(RING_OK.toUpperCase())).toEqual(await s.packing.history(RING_OK));
     await expect(s.packing.scan(9999, RING_OK, PACKER)).rejects.toThrow(/No such order/);
     await expect(s.packing.sizerDelivered(9999)).rejects.toThrow(/No such order/);
   });

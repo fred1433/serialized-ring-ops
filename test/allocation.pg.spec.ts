@@ -1,5 +1,6 @@
 import { Db, migrate, resetDb } from '../src/db';
 import { DEFAULT_DATABASE_URL } from '../src/db';
+import { lockSize } from '../src/allocation/allocator';
 import { canMove } from '../src/inventory/unit-states';
 import { addOrder, addRing, services, uuidOf } from './support/app';
 import {
@@ -10,9 +11,11 @@ import {
   ORDER_A,
   ORDER_B,
   outcome,
+  NOW,
   rightWinner,
   rollbackRelease,
   stockOrder,
+  waitForLockWaiter,
 } from './support/scenarios';
 
 describe('ring attribution on PostgreSQL', () => {
@@ -72,18 +75,22 @@ describe('ring attribution on PostgreSQL', () => {
     await s.reservations.submitSize(ORDER_B, 8);
     // The handover to B is the next insert after the release: make that insert stall, then fail.
     await db.pool.query(`
-      create function forced_failure() returns trigger language plpgsql as $$
+      create or replace function forced_failure() returns trigger language plpgsql as $$
       begin perform pg_sleep(0.3); raise exception 'forced failure'; end $$;
       create trigger forced_failure before insert on reservations for each row execute function forced_failure();
     `);
-    const cancelling = s.reservations.cancel(ORDER_A).then(
-      () => 'committed',
-      (error: Error) => error.message,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const seenDuring = await outcome(db, ring);
-    expect(await cancelling).toBe('forced failure');
-    await db.pool.query('drop trigger forced_failure on reservations');
+    let seenDuring;
+    try {
+      const cancelling = s.reservations.cancel(ORDER_A).then(
+        () => 'committed',
+        (error: Error) => error.message,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      seenDuring = await outcome(db, ring);
+      expect(await cancelling).toBe('forced failure');
+    } finally {
+      await db.pool.query('drop trigger if exists forced_failure on reservations; drop function if exists forced_failure();');
+    }
     const seenAfter = await outcome(db, ring);
     const expected = { holders: [ORDER_A], activeReservations: 1, waiting: [ORDER_B] };
     expect(seenDuring).toEqual(expected);
@@ -92,6 +99,59 @@ describe('ring attribution on PostgreSQL', () => {
     expect(order.status).toBe('open');
     const [unit] = await db.query(`select status from units where uuid = $1`, [ring]);
     expect(unit.status).toBe('reserved');
+  });
+
+  describe('the size lock is really taken', () => {
+    const holdLock = async () => {
+      const holder = await db.pool.connect();
+      await holder.query('begin');
+      await lockSize(holder, 8);
+      return async () => {
+        await holder.query('commit');
+        holder.release();
+      };
+    };
+
+    it('recording a size waits for it', async () => {
+      await resetDb(db);
+      const s = services(db);
+      await addOrder(db, ORDER_A);
+      const release = await holdLock();
+      const recording = s.reservations.recordSize(ORDER_A, 8);
+      await waitForLockWaiter(db, 'advisory');
+      await release();
+      await expect(recording).resolves.toBe(1);
+    });
+
+    it('attribution waits for it', async () => {
+      await resetDb(db);
+      const s = services(db);
+      const release = await holdLock();
+      const serving = db.tx((tx) => s.allocator.serve(tx, 8, NOW));
+      await waitForLockWaiter(db, 'advisory');
+      await release();
+      await expect(serving).resolves.toEqual([]);
+    });
+
+    it('cancel holds the order row, reads the size again, then waits for the size lock', async () => {
+      await resetDb(db);
+      const s = services(db);
+      await addOrder(db, ORDER_A);
+      // A size is being recorded for this order and has not committed.
+      const recorder = await db.pool.connect();
+      await recorder.query('begin');
+      await recorder.query('select id from orders where id = $1 for no key update', [ORDER_A]);
+      await recorder.query(`insert into size_requests (order_id, size, submitted_at) values ($1, 8, now())`, [ORDER_A]);
+      const release = await holdLock();
+      const cancelling = s.reservations.cancel(ORDER_A);
+      await waitForLockWaiter(db, 'transactionid');
+      await recorder.query('commit');
+      recorder.release();
+      // Had cancel read the size before the row lock, it would have seen none and skipped this wait.
+      await waitForLockWaiter(db, 'advisory');
+      await release();
+      await expect(cancelling).resolves.toEqual([]);
+    });
   });
 
   it('open race: twelve orders, one ring, one reservation, held by the oldest request', async () => {

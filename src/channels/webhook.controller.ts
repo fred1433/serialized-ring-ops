@@ -36,13 +36,17 @@ export class WebhookController {
     } catch {
       throw new UnauthorizedException('Signature does not match this body');
     }
-    if (event.type !== 'checkout.session.completed') return { ignored: event.type };
+    if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') {
+      return { ignored: event.type };
+    }
     const session = event.data.object as Stripe.Checkout.Session;
-    return this.intake.recordPaid({
+    return this.intake.record({
       provider: 'stripe',
       eventId: event.id,
       channelRef: session.id,
       customer: session.customer_details?.name ?? 'Unnamed customer',
+      // A delayed payment method completes the checkout unpaid, and pays in a later event.
+      paid: session.payment_status !== 'unpaid',
     });
   }
 
@@ -57,12 +61,14 @@ export class WebhookController {
     if (!signature || !sameSignature(signature, expected)) throw new UnauthorizedException('Signature does not match this body');
     if (!webhookId) throw new BadRequestException('Missing webhook ID');
     if (topic !== 'orders/paid') return { ignored: String(topic) };
-    const order = req.body as { id: number; customer?: { first_name?: string } };
-    return this.intake.recordPaid({
+    const order = req.body as { id?: number; customer?: { first_name?: string } };
+    if (order.id === undefined || order.id === null) throw new BadRequestException('Missing order ID');
+    return this.intake.record({
       provider: 'shopify',
       eventId: webhookId,
       channelRef: String(order.id),
       customer: order.customer?.first_name ?? 'Unnamed customer',
+      paid: true,
     });
   }
 }

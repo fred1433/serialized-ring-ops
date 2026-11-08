@@ -58,27 +58,23 @@
         <form class="scan" id="scan-form" autocomplete="off">
           <div class="scan-label"><label for="scan-input">Scan ring</label><span class="packer" id="packer"></span></div>
           <div class="scan-row">
-            <input id="scan-input" name="ring" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Full ring ID, then Enter">
+            <input id="scan-input" name="ring" type="text" autofocus inputmode="text" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Full ring ID, then Enter">
             <button type="submit">Scan</button>
           </div>
         </form>
 
         <div class="result" id="result" role="status" aria-live="polite">
-          <p id="result-text">Nothing scanned yet.</p>
-          <p id="result-note"></p>
+          <div class="verdict">
+            <p id="result-text">Nothing scanned yet.</p>
+            <p id="result-note"></p>
+          </div>
           <div class="result-actions">
             <button type="button" id="why-button" class="ink-button" hidden aria-expanded="false" aria-controls="canary">Why this ring?</button>
             <button type="button" id="reset-button" class="plain-button" hidden>Start over</button>
           </div>
+          <div class="stamp" id="stamp" aria-hidden="true"></div>
         </div>
-
-        <div class="stamp" id="stamp" aria-hidden="true"></div>
       </article>
-
-      <aside class="rings" aria-label="Rings on the bench">
-        <p class="prompt" id="prompt"></p>
-        <div id="stickers"></div>
-      </aside>
 
       <section class="canary" id="canary" aria-label="Why this ring" hidden>
         <h2 id="why-title"></h2>
@@ -86,20 +82,21 @@
         <h3>Packing history</h3>
         <ol class="history" id="history"></ol>
         <p class="held" id="held"></p>
-        <p class="stops">The flow stops at the pair-check eligibility answer. Bluetooth pairing itself is not part of this demo.</p>
+        <p class="stops">The flow stops at the eligibility answer. Bluetooth is not part of this demo.</p>
       </section>
+
+      <aside class="rings" id="rings" aria-label="Rings on the bench">
+        <p class="prompt" id="prompt"></p>
+        <div id="stickers"></div>
+      </aside>
     </div>
   </section>
 
   <section class="proof" aria-labelledby="proof-title">
     <div class="proof-text">
       <h2 id="proof-title">Two orders, one ring</h2>
-      <p>The bench above runs in your browser. Who gets the last ring can only be settled by a database, so this part is a recorded result from real PostgreSQL, not a live one.</p>
-      <ol>
-        <li id="step-a"></li>
-        <li id="step-b"></li>
-        <li id="step-c"></li>
-      </ol>
+      <p class="claim" id="proof-claim"></p>
+      <p>That run is recorded on real PostgreSQL, with test orders rather than the ones on this slip. The bench above runs in your browser.</p>
       <p id="witness-line"></p>
     </div>
     <div class="roll" id="roll"></div>

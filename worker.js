@@ -1,5 +1,3 @@
-// Gabarit : remplacer serialized-ring-ops. Sert site/ sous https://theaipipe.com/demos/serialized-ring-ops/ (static files only).
-// The route is more specific than the galerie-presell route theaipipe.com/demos/*, so it wins.
 const BASE = '/demos/serialized-ring-ops';
 export default {
   async fetch(request, env) {

@@ -13,10 +13,13 @@ export interface ScanOrder {
   id: number;
   expectedUuid: string | null;
   validated: boolean;
+  labelled: boolean;
 }
 
 export type ScanOutcome =
   | { outcome: 'ready'; message: string }
+  | { outcome: 'validated-no-label'; message: string }
+  | { outcome: 'rejected'; reason: 'already-packed'; message: string }
   | { outcome: 'already-validated'; message: string }
   | {
       outcome: 'blocked';
@@ -37,6 +40,14 @@ export function orderLabel(id: number): string {
 
 export function checkScan(input: string, order: ScanOrder, units: ScanUnit[]): ScanOutcome {
   const scanned = input.trim().toLowerCase();
+  // A packed order keeps its parcel. A later wrong scan changes nothing and must not read as a block.
+  if (order.validated && scanned !== order.expectedUuid) {
+    return {
+      outcome: 'rejected',
+      reason: 'already-packed',
+      message: `Scan rejected. Order ${orderLabel(order.id)} is already packed with ${suffix(order.expectedUuid as string)}.`,
+    };
+  }
   if (!FULL_ID.test(scanned)) {
     return {
       outcome: 'blocked',
@@ -83,6 +94,9 @@ export function checkScan(input: string, order: ScanOrder, units: ScanUnit[]): S
       outcome: 'already-validated',
       message: `Already validated. Still one parcel for order ${orderLabel(order.id)}.`,
     };
+  }
+  if (!order.labelled) {
+    return { outcome: 'validated-no-label', message: 'Packing validated. Create a carrier label before handoff.' };
   }
   return { outcome: 'ready', message: 'Ready for carrier handoff' };
 }

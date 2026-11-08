@@ -2,7 +2,7 @@
   "name": "serialized-ring-ops",
   "version": "0.1.0",
   "private": true,
-  "description": "One serialized smart ring from manifest to pair-check, on fictional orders. NestJS, TypeScript, PostgreSQL.",
+  "description": "One serialized smart ring from manifest to delivery, on fictional orders. NestJS, TypeScript, PostgreSQL.",
   "license": "MIT",
   "scripts": {
     "start": "tsx src/main.ts",

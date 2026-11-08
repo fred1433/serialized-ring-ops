@@ -8,6 +8,13 @@ function orderLabel(id) {
 }
 function checkScan(input, order, units) {
   const scanned = input.trim().toLowerCase();
+  if (order.validated && scanned !== order.expectedUuid) {
+    return {
+      outcome: "rejected",
+      reason: "already-packed",
+      message: `Scan rejected. Order ${orderLabel(order.id)} is already packed with ${suffix(order.expectedUuid)}.`
+    };
+  }
   if (!FULL_ID.test(scanned)) {
     return {
       outcome: "blocked",
@@ -54,6 +61,9 @@ function checkScan(input, order, units) {
       message: `Already validated. Still one parcel for order ${orderLabel(order.id)}.`
     };
   }
+  if (!order.labelled) {
+    return { outcome: "validated-no-label", message: "Packing validated. Create a carrier label before handoff." };
+  }
   return { outcome: "ready", message: "Ready for carrier handoff" };
 }
 
@@ -64,18 +74,30 @@ function formatAt(iso) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
 }
+function formatDated(iso) {
+  const d = new Date(iso);
+  return formatAt(iso).replace(", ", `, ${d.getUTCFullYear()}, `);
+}
+function stockNow(free, size) {
+  if (free === 0) return `No size ${size} ring is free now.`;
+  return free === 1 ? `1 size ${size} ring is free now.` : `${free} size ${size} rings are free now.`;
+}
 function explainWhy(input) {
-  const who = `Order ${orderLabel(input.orderId)}`;
   const ring = suffix(input.uuid);
-  const which = input.eligibleLeft === 0 ? `the last size ${input.size} ring ready to ship` : `a size ${input.size} ring ready to ship`;
+  const held = `Order ${orderLabel(input.orderId)} sent its size on ${formatAt(input.submittedAt)} and has held ${ring} since ${formatAt(input.reservedAt)}.`;
   const next = input.waiting[0];
-  const line = next ? `${who} got ${ring}, ${which}, because its size came in on ${formatAt(input.submittedAt)}, before order ${orderLabel(next.orderId)} on ${formatAt(next.submittedAt)}. Order ${orderLabel(next.orderId)} waits for the next ring.` : `${who} got ${ring}, ${which}, because its size came in on ${formatAt(input.submittedAt)} and no earlier request was waiting.`;
-  return { title: `Why ring ${ring} for order ${orderLabel(input.orderId)}`, line, history: input.history };
+  const queue = next ? `Order ${orderLabel(next.orderId)} sent its size later, on ${formatAt(next.submittedAt)}, and waits for the next ring.` : "No order is waiting.";
+  return {
+    title: `Why ring ${ring} for order ${orderLabel(input.orderId)}`,
+    line: `${held} ${stockNow(input.freeNow, input.size)} ${queue}`,
+    history: input.history
+  };
 }
 export {
   checkScan,
   explainWhy,
   formatAt,
+  formatDated,
   orderLabel,
   suffix
 };

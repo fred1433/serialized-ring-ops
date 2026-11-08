@@ -1,6 +1,6 @@
 # serialized-ring-ops
 
-One serialized smart ring, from manifest line to pair-check, on fictional orders. NestJS, TypeScript and real PostgreSQL. "Aldane" is a made-up brand; every name, address, date and ring ID here is made up too.
+One serialized smart ring, from manifest line to delivery, on fictional orders. NestJS, TypeScript and real PostgreSQL. "Aldane" is a made-up brand; every name, address, date and ring ID here is made up too.
 
 This is a slice that runs on fictional data. It is not a production system and it is connected to nothing.
 
@@ -10,7 +10,7 @@ This is a slice that runs on fictional data. It is not a production system and i
 docker compose up --build
 ```
 
-Then open http://localhost:4104 for the packing slip, with the API on the same port. The database lives in memory and is seeded with three fictional orders.
+Then open http://localhost:4104 for the packing slip, with the API on the same port. PostgreSQL runs in a container on ephemeral storage and is seeded on startup with three fictional orders.
 
 Try the wrong ring against the API while it runs:
 
@@ -38,12 +38,13 @@ Our assumption for this demo: for a given size, the oldest recorded full-size re
 - No `SKIP LOCKED` in attribution: a ring that is briefly locked must not look absent.
 - Whoever's connection runs the attribution, the queue decides who gets the ring, not the caller. See `src/allocation/allocator.ts`.
 - Rings with the same intake date go by `intake_at ASC, uuid ASC`, so the result never varies.
-- A paid order with no size reserves nothing.
+- A paid order with no size reserves nothing, and an order not yet paid cannot send one.
 - A cancel releases the ring and hands it to the oldest waiting order in one transaction.
+- A size and a cancel on one order take the same locks in the same order: the order row, then the size. Tests hold each lock open and check that the request waits, and `test/fuzz.pg.spec.ts` plus an HTTP test fire the requests together and check that no cancelled order holds a ring and no ring is left free while an order waits. Those runs found nothing; they don't prove the absence of every interleaving.
 
 ## What the race tests force
 
-`test/support/scenarios.ts`, run by both the Jest suite and the race report:
+`test/support/scenarios.ts`, run by both the Jest suite and the race report, on test orders #501 and #502, not the fictional orders on the page's slip:
 
 | Scenario | What must happen |
 | --- | --- |
@@ -52,25 +53,28 @@ Our assumption for this demo: for a given size, the oldest recorded full-size re
 | Release: the lock holder rolls back while another connection waits | the waiter looks again and serves the ring |
 | Cancel: A cancels | B gets the ring without sending its size again |
 | Open race: twelve orders, one ring, no forced order | one reservation, eleven waiting |
+| A size and a cancel on one order, with another order also asking | no cancelled order holds a ring, no ring is stranded |
 | Witness: the forced-order test with the queue read backwards | the right-winner check fails on every run |
 
 ## The scan check
 
 `src/shared/scan-check.ts` is imported by NestJS and bundled unchanged as `site/shared.js` for the page; a test compares the bytes. It compares the whole ID. The last four characters are only for reading.
 
-A wrong scan blocks validation of the parcel. The label may already exist, and it stays. Label created, handed to carrier and delivered are three separate states, and the sizer's parcel is a separate table: "sizer delivered" never marks the ring delivered.
+A wrong scan blocks validation of the parcel. The label may already exist, and it stays. On an order already packed, a wrong scan is rejected and the parcel can still leave. `Ready for carrier handoff` appears only when the parcel is validated and labelled; without a label the scan says one is missing, and the handoff is refused until there is one. Label created, handed to carrier and delivered are three separate states, and the sizer's parcel is a separate table: "sizer delivered" never marks the ring delivered.
+
+`GET /orders/:id/why` lists the order's refused and repeated scans with the ID scanned, along with its label and sizer lines. A refused scan does not enter the history of the ring that was scanned.
 
 ## Channels and what is not connected
 
 | Channel | Status in this repository |
 | --- | --- |
-| Stripe | Webhook replayed locally with a test signature: verified by the official SDK, altered body refused, two simultaneous deliveries give one order |
-| Shopify | Webhook replayed locally with a test HMAC: same three checks |
-| CSV manifest | Works; replaying a file adds no unit, duplicate lines are rejected |
+| Stripe | Webhook replayed locally with a test signature: verified by the official SDK, altered body refused, two simultaneous deliveries give one order, an unpaid checkout records no payment until the delayed payment succeeds |
+| Shopify | Webhook replayed locally with a test HMAC: same three checks, an order with no ID refused, one webhook ID on two orders refused |
+| CSV manifest | Works; replaying a file adds no unit, duplicate lines are rejected, a file without its header is refused |
 | Carrier (Shippo-shaped) | Interface and fake in `src/channels/fake-providers.ts`; not connected |
 | Printer (PrintNode-shaped) | Interface and fake in the same file; not connected |
 | Amazon | Left out of this slice |
-| Bluetooth pairing | Out of scope; the flow stops at the eligibility answer of `GET /units/:uuid/pair-check` |
+| Bluetooth | Not part of this slice; the flow stops at the answer of `GET /units/:uuid/pairing-eligibility` |
 
 Packing history is only ever inserted into by the application code. No test proves a database role can't alter it, so this repository promises nothing more than that.
 
@@ -82,12 +86,12 @@ Packing history is only ever inserted into by the application code. No test prov
 | `POST /units/:uuid/intake` | Scan a ring in |
 | `POST /units/:uuid/qa` `{result}` | `passed` or `failed` |
 | `GET /units/:uuid/history` | Packing history of a ring |
-| `GET /units/:uuid/pair-check` | Eligibility answer |
+| `GET /units/:uuid/pairing-eligibility` | Eligibility answer |
 | `POST /orders/:id/size` `{size}` | Record the request, then attribute |
 | `POST /orders/:id/cancel` | Release and hand over |
 | `GET /orders/:id/slip` | Slip and pick list |
 | `GET /orders/:id/why` | Why this ring |
-| `POST /orders/:id/label` | Create a label (fake carrier and printer) |
+| `POST /orders/:id/label` | Create a label once (fake carrier and printer) |
 | `POST /orders/:id/scan` `{ringId}` | Packing scan |
 | `POST /orders/:id/handoff` | Hand to carrier (simulated) |
 | `POST /orders/:id/delivered` | Ring delivered (simulated) |

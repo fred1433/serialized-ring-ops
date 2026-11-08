@@ -4,6 +4,7 @@ import { Allocator } from '../../src/allocation/allocator';
 import { Db, resetDb } from '../../src/db';
 import { addOrder, addRing, services, uuidOf } from './app';
 
+// Test orders. They are not the fictional orders on the page's slip.
 export const ORDER_A = 501;
 export const ORDER_B = 502;
 export const NOW = new Date('2026-11-05T12:00:00Z');
@@ -34,10 +35,12 @@ export async function outcome(db: Db, uuid: string): Promise<Outcome> {
 }
 
 /** Polls until another backend sits waiting on a lock, so a step cannot run ahead by luck. */
-export async function waitForLockWaiter(db: Db): Promise<void> {
+export async function waitForLockWaiter(db: Db, event = '%'): Promise<void> {
   for (let i = 0; i < 500; i += 1) {
     const [{ n }] = await db.query<{ n: number }>(
-      `select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`,
+      `select count(*)::int as n from pg_stat_activity
+        where wait_event_type = 'Lock' and wait_event like $1 and datname = current_database()`,
+      [event],
     );
     if (n > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -130,4 +133,43 @@ export async function openRace(db: Db, orders = 12): Promise<Outcome> {
   for (const id of ids) await addOrder(db, id);
   await Promise.all(ids.map((id) => s.reservations.submitSize(id, 8)));
   return outcome(db, ring);
+}
+
+/** What must never be true once every request has answered. */
+export async function violations(db: Db): Promise<string[]> {
+  const found: string[] = [];
+  const count = async (sql: string) => (await db.query<{ n: number }>(sql))[0].n;
+  if (await count(`select count(*)::int as n from reservations r join orders o on o.id = r.order_id where r.active and o.status = 'cancelled'`)) {
+    found.push('cancelled order holds a ring');
+  }
+  if (await count(`select count(*)::int as n from units u where u.status = 'reserved' and not exists (select 1 from reservations r where r.unit_uuid = u.uuid and r.active)`)) {
+    found.push('ring marked reserved with no reservation');
+  }
+  if (await count(`select count(*)::int as n from reservations r join units u on u.uuid = r.unit_uuid where r.active and u.status = 'available'`)) {
+    found.push('ring marked available while reserved');
+  }
+  if (
+    await count(`select count(*)::int as n from size_requests q join orders o on o.id = q.order_id
+      join units u on u.size = q.size and u.status = 'available' and u.qa = 'passed'
+      where o.status = 'open' and not exists (select 1 from reservations r where r.order_id = q.order_id and r.active)`)
+  ) {
+    found.push('free ring while an order waits');
+  }
+  return found;
+}
+
+export interface OrderRequests {
+  size(orderId: number, size: number): Promise<unknown>;
+  cancel(orderId: number): Promise<unknown>;
+}
+
+/** A size and a cancel on one order at the same moment, with another order also asking for the one ring. */
+export async function sizeAgainstCancel(db: Db, send: OrderRequests): Promise<string[]> {
+  await resetDb(db);
+  const s = services(db);
+  await addRing(s, uuidOf(1), '2026-11-01T08:00:00Z');
+  await addOrder(db, ORDER_A);
+  await addOrder(db, ORDER_B);
+  await Promise.allSettled([send.size(ORDER_A, 8), send.cancel(ORDER_A), send.size(ORDER_B, 8)]);
+  return violations(db);
 }

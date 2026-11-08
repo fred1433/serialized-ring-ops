@@ -41,6 +41,13 @@ describe('manifest and intake on PostgreSQL', () => {
     expect(await count()).toBe(2);
   });
 
+  it('refuses a file without the header instead of losing its first ring', async () => {
+    await expect(s.manifests.importCsv(`${a},8,L-1\n${b},8,L-1\n`, 'test')).rejects.toThrow(/header uuid,size,lot/);
+    expect(await count()).toBe(0);
+    const spaced = await s.manifests.importCsv(`UUID, size, lot\n${a},8,L-1\n`, 'test');
+    expect(spaced.accepted).toBe(1);
+  });
+
   it('short lines are bad lines, not crashes', async () => {
     const result = await s.manifests.importCsv(`uuid,size,lot\n${a}\n\n`, 'test');
     expect(result.rejected).toEqual([{ line: 1, reason: 'bad-line' }]);

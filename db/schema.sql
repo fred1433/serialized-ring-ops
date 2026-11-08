@@ -14,7 +14,7 @@ create table orders (
   channel text not null,
   channel_ref text not null,
   customer text not null,
-  paid_at timestamptz not null,
+  paid_at timestamptz,
   status text not null default 'open',
   unique (channel, channel_ref)
 );
@@ -44,6 +44,7 @@ create table parcels (
   order_id int primary key references orders (id),
   unit_uuid uuid references units (uuid),
   label_created_at timestamptz,
+  label_url text,
   validated_at timestamptz,
   handed_off_at timestamptz,
   delivered_at timestamptz
@@ -62,6 +63,7 @@ create table packing_events (
   actor text not null,
   order_id int,
   unit_uuid text,
+  scanned text,
   reason text,
   detail text not null
 );
@@ -69,6 +71,6 @@ create table packing_events (
 create table webhook_deliveries (
   provider text not null,
   event_id text not null,
-  order_id int not null references orders (id),
+  order_id int references orders (id),
   primary key (provider, event_id)
 );

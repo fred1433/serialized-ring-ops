@@ -1,5 +1,5 @@
 // <define:__COVERAGE__>
-var define_COVERAGE_default = { lines: { total: 460, covered: 460, skipped: 0, pct: 100 }, statements: { total: 513, covered: 513, skipped: 0, pct: 100 }, functions: { total: 96, covered: 96, skipped: 0, pct: 100 }, branches: { total: 96, covered: 94, skipped: 0, pct: 97.91 }, branchesTrue: { total: 0, covered: 0, skipped: 0, pct: 100 } };
+var define_COVERAGE_default = { lines: { total: 497, covered: 497, skipped: 0, pct: 100 }, statements: { total: 558, covered: 558, skipped: 0, pct: 100 }, functions: { total: 102, covered: 102, skipped: 0, pct: 100 }, branches: { total: 129, covered: 127, skipped: 0, pct: 98.44 }, branchesTrue: { total: 0, covered: 0, skipped: 0, pct: 100 } };
 
 // <define:__DEMO_STATE__>
 var define_DEMO_STATE_default = {
@@ -11,6 +11,7 @@ var define_DEMO_STATE_default = {
     size: 8,
     sizeSubmittedAt: "2026-11-03T09:12:00.000Z",
     expectedUuid: "8e2f41c6-3b7a-4d19-a6e2-5f0c91d47c21",
+    reservedAt: "2026-11-03T09:12:00.000Z",
     lot: "L-2304",
     labelCreatedAt: "2026-11-04T08:05:00.000Z",
     validatedAt: null,
@@ -54,37 +55,56 @@ var define_DEMO_STATE_default = {
   ],
   why: {
     title: "Why ring …7C21 for order #104",
-    line: "Order #104 got …7C21, the last size 8 ring ready to ship, because its size came in on Nov 3, 09:12 UTC, before order #105 on Nov 3, 16:40 UTC. Order #105 waits for the next ring.",
+    line: "Order #104 sent its size on Nov 3, 09:12 UTC and has held …7C21 since Nov 3, 09:12 UTC. No size 8 ring is free now. Order #105 sent its size later, on Nov 3, 16:40 UTC, and waits for the next ring.",
     history: [
       {
         at: "2026-10-26T09:10:00.000Z",
         kind: "manifest",
         actor: "M. Teller (fictional)",
-        detail: "Lot L-2304, manifest line 1, size 8"
+        detail: "Lot L-2304, manifest line 1, size 8",
+        scanned: null
       },
       {
         at: "2026-10-26T09:24:00.000Z",
         kind: "intake",
         actor: "M. Teller (fictional)",
-        detail: "Scanned in, lot L-2304"
+        detail: "Scanned in, lot L-2304",
+        scanned: null
       },
       {
         at: "2026-10-26T13:48:00.000Z",
         kind: "qa",
         actor: "R. Osei (fictional)",
-        detail: "QA passed"
+        detail: "QA passed",
+        scanned: null
+      },
+      {
+        at: "2026-11-02T14:40:00.000Z",
+        kind: "sizer_delivered",
+        actor: "carrier",
+        detail: "Sizer delivered (simulated)",
+        scanned: null
       },
       {
         at: "2026-11-03T09:12:00.000Z",
         kind: "size",
         actor: "customer",
-        detail: "Size 8 submitted"
+        detail: "Size 8 submitted",
+        scanned: null
       },
       {
         at: "2026-11-03T09:12:00.000Z",
         kind: "reserved",
         actor: "system",
-        detail: "Reserved for order #104"
+        detail: "Reserved for order #104",
+        scanned: null
+      },
+      {
+        at: "2026-11-04T08:05:00.000Z",
+        kind: "label",
+        actor: "J. Novak (fictional)",
+        detail: "Ring label created (fake carrier)",
+        scanned: null
       }
     ]
   },
@@ -93,31 +113,50 @@ var define_DEMO_STATE_default = {
       at: "2026-10-26T09:10:00.000Z",
       kind: "manifest",
       actor: "M. Teller (fictional)",
-      detail: "Lot L-2304, manifest line 1, size 8"
+      detail: "Lot L-2304, manifest line 1, size 8",
+      scanned: null
     },
     {
       at: "2026-10-26T09:24:00.000Z",
       kind: "intake",
       actor: "M. Teller (fictional)",
-      detail: "Scanned in, lot L-2304"
+      detail: "Scanned in, lot L-2304",
+      scanned: null
     },
     {
       at: "2026-10-26T13:48:00.000Z",
       kind: "qa",
       actor: "R. Osei (fictional)",
-      detail: "QA passed"
+      detail: "QA passed",
+      scanned: null
+    },
+    {
+      at: "2026-11-02T14:40:00.000Z",
+      kind: "sizer_delivered",
+      actor: "carrier",
+      detail: "Sizer delivered (simulated)",
+      scanned: null
     },
     {
       at: "2026-11-03T09:12:00.000Z",
       kind: "size",
       actor: "customer",
-      detail: "Size 8 submitted"
+      detail: "Size 8 submitted",
+      scanned: null
     },
     {
       at: "2026-11-03T09:12:00.000Z",
       kind: "reserved",
       actor: "system",
-      detail: "Reserved for order #104"
+      detail: "Reserved for order #104",
+      scanned: null
+    },
+    {
+      at: "2026-11-04T08:05:00.000Z",
+      kind: "label",
+      actor: "J. Novak (fictional)",
+      detail: "Ring label created (fake carrier)",
+      scanned: null
     }
   ],
   reservations: [
@@ -189,7 +228,7 @@ var define_RACE_REPORT_default = {
 };
 
 // page/app.ts
-import { checkScan, formatAt, orderLabel, suffix } from "./shared.js";
+import { checkScan, formatAt, formatDated, orderLabel, suffix } from "./shared.js";
 
 // page/code128.ts
 var PATTERNS = [
@@ -333,6 +372,9 @@ var motionOk = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 var touch = matchMedia("(pointer: coarse)").matches;
 var $ = (id) => document.getElementById(id);
 var esc = (text) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+var setVerdict = (el, text) => {
+  el.innerHTML = esc(text).replace(/…[0-9A-F]{4}/g, '<span class="id">$&</span>');
+};
 var validatedAt = null;
 var parcels = 0;
 var refusals = 0;
@@ -352,7 +394,7 @@ function renderParcel() {
     ["Packing validated", validatedAt && formatAt(validatedAt)],
     ["Handed to carrier", null],
     ["Ring delivered", null],
-    ["Eligible for pair-check", null]
+    ["Eligible to pair", null]
   ];
   $("parcel-states").innerHTML = rows.map(([label, at]) => `<li class="${at ? "done" : ""}"><span class="box" aria-hidden="true"></span><span>${label}${at ? `<small>${at}</small>` : ""}<span class="sr">${at ? ": done" : ": not yet"}</span></span></li>`).join("");
 }
@@ -381,42 +423,63 @@ function thud(text, kind) {
 }
 function nextHint() {
   const wrong = state.rings.find((r) => r.uuid !== slip.expectedUuid);
-  return refusals === 0 && wrong ? `Now try ${suffix(wrong.uuid)}. It is the same size.` : "";
+  return refusals === 0 && wrong ? `To see a refusal, start over and scan ${suffix(wrong.uuid)} first.` : "";
 }
-function logScan(kind, detail) {
-  scans.push({ at: (/* @__PURE__ */ new Date()).toISOString(), kind, actor: state.packer, detail });
+function logScan(kind, detail, scanned) {
+  scans.push({ at: (/* @__PURE__ */ new Date()).toISOString(), kind, actor: state.packer, detail, scanned });
   renderHistory();
 }
-function showResult(decision) {
+function refusalNote(reason) {
+  const logged = "The refusal went into the packing history.";
+  if (reason === "other-order") return `Both reservations are unchanged. The label stays printed; the parcel cannot leave. ${logged}`;
+  if (reason === "failed-qa") return `This ring has no reservation to change, and it stays out of every parcel. The parcel still needs ${expected}. ${logged}`;
+  return `No reservation changed. The parcel still needs ${expected}. ${logged}`;
+}
+function clearVerdict() {
+  delete $("result").dataset.outcome;
+  stamp.className = "stamp";
+  stamp.textContent = "";
+  $("result-note").textContent = "";
+}
+function showResult(decision, scanned) {
   const box = $("result");
   box.dataset.outcome = decision.outcome;
-  $("result-text").textContent = decision.message;
+  setVerdict($("result-text"), decision.message);
   if (decision.outcome === "blocked") {
     thud("Blocked", "refused");
     refusals += 1;
-    logScan("scan_refused", decision.message);
-    $("result-note").textContent = "Both reservations are unchanged. The label stays printed; the parcel cannot leave. The refusal went into the packing history.";
-  } else if (decision.outcome === "ready") {
+    logScan("scan_refused", decision.message, scanned);
+    $("result-note").textContent = refusalNote(decision.reason);
+  } else if (decision.outcome === "rejected") {
+    thud("Rejected", "refused");
+    refusals += 1;
+    logScan("scan_refused", decision.message, scanned);
+    $("result-note").textContent = `This ring stays off the parcel. The parcel validated with ${expected} is unchanged. The refusal went into the packing history.`;
+  } else if (decision.outcome === "ready" || decision.outcome === "validated-no-label") {
     thud("Ready", "passed");
     validatedAt = (/* @__PURE__ */ new Date()).toISOString();
     parcels = 1;
     renderParcel();
-    logScan("scan_accepted", decision.message);
+    logScan("scan_accepted", decision.message, scanned);
     $("result-note").textContent = `Parcels validated for this order: ${parcels}. ${nextHint()}`.trim();
   } else {
     thud("Ready", "passed");
-    logScan("scan_repeated", decision.message);
+    logScan("scan_repeated", decision.message, scanned);
     $("result-note").textContent = `Parcels validated for this order: ${parcels}. A second scan adds nothing.`;
   }
   $("why-button").hidden = refusals === 0;
   $("reset-button").hidden = false;
-  if (box.getBoundingClientRect().bottom > innerHeight || box.getBoundingClientRect().top < 0) {
-    box.scrollIntoView({ block: "center", behavior: motionOk ? "smooth" : "auto" });
+  const tray = $("rings");
+  const floor = getComputedStyle(tray).position === "sticky" ? tray.getBoundingClientRect().top : innerHeight;
+  if (box.getBoundingClientRect().bottom > floor || box.getBoundingClientRect().top < 0) {
+    const rect = box.getBoundingClientRect();
+    const top = scrollY + rect.top - Math.max(8, (floor - rect.height) / 2);
+    scrollTo({ top, behavior: motionOk ? "smooth" : "auto" });
   }
 }
 function runScan(value) {
-  const decision = checkScan(value, { id: slip.orderId, expectedUuid: slip.expectedUuid, validated: validatedAt !== null }, units);
-  showResult(decision);
+  const decision = checkScan(value, { id: slip.orderId, expectedUuid: slip.expectedUuid, validated: validatedAt !== null, labelled: slip.labelCreatedAt !== null }, units);
+  showResult(decision, value.trim());
   input.value = "";
   focusScanner();
 }
@@ -424,6 +487,7 @@ $("scan-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (scanning) return;
   if (input.value.trim() === "") {
+    clearVerdict();
     $("result-text").textContent = "Scan a label, or type a full ring ID and press Enter.";
     focusScanner();
     return;
@@ -454,11 +518,11 @@ $("stickers").addEventListener("click", (event) => {
 });
 function renderHistory() {
   const tone = { scan_refused: "refusal", scan_accepted: "accepted", scan_repeated: "accepted" };
-  const row = (h) => `<li class="${tone[h.kind] ?? ""}"><time>${formatAt(h.at)}</time><span>${esc(h.detail)}</span><span class="who">${esc(h.actor[0].toUpperCase() + h.actor.slice(1))}</span></li>`;
+  const row = (h) => `<li class="${tone[h.kind] ?? ""}"><time>${formatAt(h.at)}</time><span>${esc(h.detail)}${h.kind === "scan_refused" && h.scanned ? `<small>Scanned: ${esc(h.scanned)}</small>` : ""}</span><span class="who">${esc(h.actor[0].toUpperCase() + h.actor.slice(1))}</span></li>`;
   $("history").innerHTML = [...state.why.history, ...scans].map(row).join("");
 }
 $("why-title").textContent = state.why.title;
-$("why-line").textContent = state.why.line;
+setVerdict($("why-line"), state.why.line);
 $("held").textContent = `Held now: ${state.reservations.map((r) => `order ${orderLabel(r.orderId)} has ${suffix(r.uuid)}`).join(", ")}. Waiting: ${state.waiting.map((w) => `order ${orderLabel(w.orderId)}`).join(", ")}.`;
 renderHistory();
 var canary = $("canary");
@@ -482,29 +546,26 @@ $("reset-button").addEventListener("click", () => {
   scans = [];
   renderParcel();
   renderHistory();
-  stamp.className = "stamp";
-  stamp.textContent = "";
+  clearVerdict();
   canary.hidden = true;
   document.body.classList.remove("why-open");
   whyButton.setAttribute("aria-expanded", "false");
   whyButton.hidden = true;
   $("reset-button").hidden = true;
-  delete $("result").dataset.outcome;
   $("result-text").textContent = "Nothing scanned yet.";
-  $("result-note").textContent = "";
   focusScanner();
 });
-var later = state.waiting[0];
-$("step-a").textContent = `Order ${order} sends its size. Order ${later ? orderLabel(later.orderId) : ""} sends its size after it.`;
-$("step-b").textContent = `The later order's database connection gets there first, which is the case that goes wrong if the rule is "whoever arrives".`;
-$("step-c").textContent = "The earlier order still gets the ring. The later one waits, and one reservation exists for that ring.";
 var roll = $("roll");
 if (report) {
   const short = report.commit.slice(0, 7);
+  const forced = report.scenarios.find((s) => s.key === "forced_order");
+  if (forced && forced.passed === forced.runs) {
+    $("proof-claim").textContent = `The earlier order got the last ring in all ${forced.runs} runs, even when the later order's connection moved first.`;
+  }
   $("witness-line").textContent = `To check that the test can fail at all, the same run reads the queue backwards on purpose. It failed ${report.witness.failed} of ${report.witness.runs} times, as it should.`;
   const rows = report.scenarios.map((s) => `<li><span>${esc(s.title)}</span><b>${s.passed}/${s.runs}</b></li>`).join("");
   roll.innerHTML = `<h3>Recorded test run</h3>
-    <p class="roll-meta">${formatAt(report.recordedAt)}<br>Commit <a href="${REPO}/commit/${esc(report.commit)}">${esc(short)}</a><br>PostgreSQL ${esc(report.postgres)}</p>
+    <p class="roll-meta">${formatDated(report.recordedAt)}<br>Commit <a href="${REPO}/commit/${esc(report.commit)}">${esc(short)}</a><br>PostgreSQL ${esc(report.postgres)}</p>
     <ul>${rows}</ul>
     <p class="roll-witness"><span>${esc(report.witness.title)}</span><b>failed ${report.witness.failed}/${report.witness.runs}</b></p>
     <p class="roll-cmd">Replay it<code>${esc(report.command)}</code></p>`;
@@ -513,4 +574,13 @@ if (report) {
 }
 var covered = coverage ? `Test coverage ${Math.min(coverage.statements.pct, coverage.branches.pct, coverage.functions.pct, coverage.lines.pct)}% on its lowest measure.` : "Test coverage not recorded in this build.";
 $("tech-line").innerHTML = `<a href="${REPO}">Code on GitHub</a>. ${covered} Stripe and Shopify webhooks replay locally with test signatures; carrier and printer are fakes; Amazon is left out.`;
-focusScanner();
+if (touch) {
+  requestAnimationFrame(() => {
+    if (document.activeElement === input) {
+      input.blur();
+      scrollTo(0, 0);
+    }
+  });
+} else {
+  focusScanner();
+}

@@ -156,13 +156,23 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
 }
 .scan button:hover { background: #2f3440; }
 
-.result { min-height: 92px; padding-top: 10px; padding-right: 0; }
+.result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'verdict stamp' 'actions stamp';
+  grid-template-rows: auto 1fr;
+  min-height: 92px;
+  padding-top: 10px;
+}
+.verdict { grid-area: verdict; min-width: 0; }
+.result-actions { grid-area: actions; }
 .result p { margin: 0; }
 #result-text { font-size: 19px; font-weight: 700; font-variation-settings: 'wdth' 88; line-height: 1.22; color: var(--toner-soft); }
 .result[data-outcome] #result-text { color: var(--toner); }
 .result[data-outcome='blocked'] #result-text { color: var(--refuse); }
-.result[data-outcome='ready'] #result-text, .result[data-outcome='already-validated'] #result-text { color: var(--pass); }
+.result[data-outcome='ready'] #result-text, .result[data-outcome='validated-no-label'] #result-text, .result[data-outcome='already-validated'] #result-text { color: var(--pass); }
 #result-note { margin-top: 3px; font-size: 14px; color: var(--toner-soft); max-width: 56ch; }
+.result[data-outcome='rejected'] #result-text { color: var(--refuse); }
 .result-actions { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
 .result-actions:not(:has(button:not([hidden]))) { display: none; }
 .ink-button {
@@ -186,18 +196,19 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
   cursor: pointer;
 }
 
-/* A rubber stamp. It lands once per scan and multiplies into the paper. */
+/* A rubber stamp. It lands once per scan, in a cell of its own beside the verdict, so it never covers the reason. */
 .stamp {
-  position: absolute;
-  right: 22px;
-  bottom: 16px;
+  grid-area: stamp;
+  justify-self: end;
+  align-self: end;
+  margin: 8px 10px 6px 26px;
   display: none;
-  padding: 2px 16px 0;
+  padding: 2px 14px 0;
   border: 7px double currentColor;
   border-radius: 6px;
   font-variation-settings: 'wdth' 62;
   font-weight: 900;
-  font-size: 80px;
+  font-size: clamp(50px, 5.2vw, 76px);
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.01em;
@@ -269,6 +280,7 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
 .why-line { margin: 8px 0 16px; font-size: 17px; line-height: 1.36; max-width: 66ch; }
 .canary h3 { color: var(--toner); }
 .history { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--toner); font-size: 14px; }
+.id { white-space: nowrap; }
 .history li {
   display: grid;
   grid-template-columns: 124px 1fr minmax(120px, auto);
@@ -277,6 +289,7 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
   border-bottom: 1px solid var(--canary-rule);
 }
 .history time { font-variant-numeric: tabular-nums; }
+.history small { display: block; font-family: var(--mono); font-size: 11.5px; font-weight: 400; overflow-wrap: anywhere; }
 .history .who { color: #5d5416; text-align: right; }
 .history .refusal { color: var(--refuse); font-weight: 600; }
 .history .refusal .who { color: var(--refuse); font-weight: 400; }
@@ -302,8 +315,7 @@ address { font-style: normal; font-size: 15px; line-height: 1.35; }
   line-height: .96;
 }
 .proof-text p { margin: 0 0 12px; font-size: 18px; line-height: 1.42; }
-.proof ol { margin: 0 0 14px; padding-left: 26px; font-size: 18px; line-height: 1.38; }
-.proof li { margin-bottom: 6px; }
+.proof-text .claim { font-size: clamp(23px, 2.3vw, 31px); font-weight: 600; font-variation-settings: 'wdth' 88; line-height: 1.2; text-wrap: pretty; }
 .roll {
   background: var(--paper);
   padding: 16px 16px 30px;
@@ -342,7 +354,23 @@ footer p { margin: 0; }
 }
 @media (max-width: 620px) {
   h1 { font-size: clamp(50px, 19vw, 110px); line-height: .92; }
-  .slip { padding: 14px 14px 12px; transform: none; }
+  /* The rings dock at the bottom of the screen for as long as the slip is on it. */
+  .layout { display: block; }
+  .rings {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin: 12px -16px 0;
+    padding: 7px 16px calc(8px + env(safe-area-inset-bottom));
+    background: var(--mat);
+    box-shadow: 0 -5px 12px -4px rgba(40, 60, 55, .38);
+  }
+  .prompt { margin: 0 0 6px; font-size: 14px; max-width: none; }
+  .sticker { padding: 5px 7px 5px; gap: 1px; }
+  .sticker-action { margin-top: 0; font-size: 12.5px; }
+  .barcode { height: 16px !important; }
+  .sticker-id span { display: none !important; }
+  .slip { padding: 14px 14px 12px; transform: none; overflow: clip; }
   .slip-head h2 { font-size: 27px; }
   .slip-grid { grid-template-columns: 1fr; }
   .cell, .cell:first-child, .cell:last-child { border-left: 0; padding: 9px 0; border-top: 1px solid var(--rule); }
@@ -355,12 +383,13 @@ footer p { margin: 0; }
   .sticker-id span { font-size: 11.5px; }
   .sticker-action { font-size: 13px; }
   .barcode { height: 26px; }
-  .stamp { font-size: 42px; right: 8px; bottom: 8px; padding: 1px 8px 0; border-width: 4px; }
+  .result { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'verdict verdict' 'actions stamp'; }
+  .stamp { font-size: 42px; margin: 16px 4px 6px 8px; padding: 1px 8px 0; border-width: 4px; }
   .scan button { padding: 0 16px; }
   .result-actions { flex-direction: column; align-items: flex-start; gap: 8px; }
   #result-text { font-size: 18px; }
   .canary { margin: -4px 6px 0 6px; padding: 18px 14px 14px; }
-  .history li { grid-template-columns: 1fr; gap: 0; padding: 6px 0; }
+  .history li { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 6px 0; }
   .history .who { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) {

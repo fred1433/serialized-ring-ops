@@ -63,6 +63,7 @@ export async function readDemoState(db: Db, orderId = 104): Promise<DemoState> {
     slip: {
       ...slip,
       sizeSubmittedAt: iso(slip.sizeSubmittedAt),
+      reservedAt: iso(slip.reservedAt),
       labelCreatedAt: iso(slip.labelCreatedAt),
       sizerDeliveredAt: iso(slip.sizerDeliveredAt),
     },

@@ -13,6 +13,7 @@ export interface Slip {
   size: number | null;
   sizeSubmittedAt: string | null;
   expectedUuid: string | null;
+  reservedAt: string | null;
   lot: string | null;
   labelCreatedAt: string | null;
   validatedAt: string | null;
@@ -20,6 +21,16 @@ export interface Slip {
   deliveredAt: string | null;
   sizerDeliveredAt: string | null;
 }
+
+interface EventRow {
+  at: Date;
+  kind: string;
+  actor: string;
+  detail: string;
+  scanned: string | null;
+}
+
+const toEntry = (r: EventRow): HistoryEntry => ({ at: r.at.toISOString(), kind: r.kind, actor: r.actor, detail: r.detail, scanned: r.scanned });
 
 @Injectable()
 export class PackingService {
@@ -34,7 +45,7 @@ export class PackingService {
   async slip(orderId: number): Promise<Slip> {
     const [row] = await this.db.query<Slip>(
       `select o.id as "orderId", o.customer, q.size, q.submitted_at as "sizeSubmittedAt",
-              r.unit_uuid as "expectedUuid", u.lot,
+              r.unit_uuid as "expectedUuid", r.reserved_at as "reservedAt", u.lot,
               p.label_created_at as "labelCreatedAt", p.validated_at as "validatedAt",
               p.handed_off_at as "handedOffAt", p.delivered_at as "deliveredAt",
               s.delivered_at as "sizerDeliveredAt"
@@ -54,29 +65,37 @@ export class PackingService {
   async scan(orderId: number, input: string, actor: string): Promise<ScanOutcome> {
     const at = this.clock.now();
     return this.db.tx(async (tx) => {
-      const order = await tx.query('select id from orders where id = $1 for update', [orderId]);
-      if (order.rowCount === 0) throw new NotFoundException('No such order');
+      const order = await tx.query<{ status: string }>('select status from orders where id = $1 for no key update', [orderId]);
+      if (!order.rows[0]) throw new NotFoundException('No such order');
+      if (order.rows[0].status !== 'open') throw new ConflictException('Order is cancelled');
       const reservation = await tx.query<{ unit_uuid: string }>(
         'select unit_uuid from reservations where order_id = $1 and active',
         [orderId],
       );
       const expectedUuid = reservation.rows[0]?.unit_uuid ?? null;
-      const parcel = await tx.query('select 1 from parcels where order_id = $1 and validated_at is not null', [orderId]);
+      const parcel = await tx.query<{ validated: boolean; labelled: boolean }>(
+        `select coalesce(bool_or(validated_at is not null), false) as validated,
+                coalesce(bool_or(label_created_at is not null), false) as labelled
+           from parcels where order_id = $1`,
+        [orderId],
+      );
       const units = await this.loadUnit(tx, input);
-      const decision = checkScan(input, { id: orderId, expectedUuid, validated: parcel.rowCount === 1 }, units);
+      const decision = checkScan(input, { id: orderId, expectedUuid, ...parcel.rows[0] }, units);
       const scanned = input.trim().toLowerCase();
-      if (decision.outcome === 'blocked') {
+      // A refused or repeated scan belongs to this order's history, not to the ring that was scanned,
+      // which may be reserved for somebody else.
+      if (decision.outcome === 'blocked' || decision.outcome === 'rejected') {
         await logEvent(tx, {
           at,
           kind: 'scan_refused',
           actor,
           orderId,
-          unitUuid: scanned,
+          scanned,
           reason: decision.reason,
           detail: decision.message,
         });
       } else if (decision.outcome === 'already-validated') {
-        await logEvent(tx, { at, kind: 'scan_repeated', actor, orderId, unitUuid: scanned, detail: decision.message });
+        await logEvent(tx, { at, kind: 'scan_repeated', actor, orderId, scanned, detail: decision.message });
       } else {
         await moveUnit(tx, scanned, 'packed');
         await tx.query(
@@ -84,7 +103,7 @@ export class PackingService {
            on conflict (order_id) do update set unit_uuid = excluded.unit_uuid, validated_at = excluded.validated_at`,
           [orderId, scanned, at],
         );
-        await logEvent(tx, { at, kind: 'scan_accepted', actor, orderId, unitUuid: scanned, detail: decision.message });
+        await logEvent(tx, { at, kind: 'scan_accepted', actor, orderId, unitUuid: scanned, scanned, detail: decision.message });
       }
       return decision;
     });
@@ -103,18 +122,38 @@ export class PackingService {
   /** A label may exist before the scan. A wrong scan blocks the parcel, not the label. */
   async createLabel(orderId: number, actor: string): Promise<string> {
     const at = this.clock.now();
-    const slip = await this.slip(orderId);
-    const label = await this.carrier.createLabel(orderId);
-    await this.printer.print(label.url);
-    await this.db.tx(async (tx) => {
-      await tx.query(
-        `insert into parcels (order_id, label_created_at) values ($1, $2)
-         on conflict (order_id) do update set label_created_at = excluded.label_created_at`,
-        [slip.orderId, at],
+    return this.db.tx(async (tx) => {
+      const order = await tx.query<{ status: string; unit_uuid: string | null }>(
+        `select o.status, r.unit_uuid from orders o
+           left join reservations r on r.order_id = o.id and r.active
+          where o.id = $1 for no key update of o`,
+        [orderId],
       );
-      await logEvent(tx, { at, kind: 'label', actor, orderId, detail: `Ring label created (${label.provider})` });
+      if (!order.rows[0]) throw new NotFoundException('No such order');
+      if (order.rows[0].status !== 'open') throw new ConflictException('Order is cancelled');
+      const existing = await tx.query<{ label_url: string }>(
+        'select label_url from parcels where order_id = $1 and label_url is not null',
+        [orderId],
+      );
+      // One label per parcel. Asking again returns it without printing again.
+      if (existing.rows[0]) return existing.rows[0].label_url;
+      const label = await this.carrier.createLabel(orderId);
+      await this.printer.print(label.url);
+      await tx.query(
+        `insert into parcels (order_id, label_created_at, label_url) values ($1, $2, $3)
+         on conflict (order_id) do update set label_created_at = excluded.label_created_at, label_url = excluded.label_url`,
+        [orderId, at, label.url],
+      );
+      await logEvent(tx, {
+        at,
+        kind: 'label',
+        actor,
+        orderId,
+        unitUuid: order.rows[0].unit_uuid,
+        detail: `Ring label created (${label.provider})`,
+      });
+      return label.url;
     });
-    return label.url;
   }
 
   async handOff(orderId: number, actor: string): Promise<void> {
@@ -155,36 +194,37 @@ export class PackingService {
   }
 
   /** Eligibility only. Bluetooth pairing is out of scope and nothing here talks to a ring. */
-  async pairCheck(uuid: string): Promise<{ eligible: boolean; status: string }> {
+  async pairingEligibility(uuid: string): Promise<{ eligible: boolean; status: string }> {
     const [unit] = await this.db.query<{ status: string }>('select status from units where uuid = $1', [uuid]);
     if (!unit) throw new NotFoundException('No ring with that ID');
     return { eligible: unit.status === 'delivered', status: unit.status };
   }
 
   async history(uuid: string): Promise<HistoryEntry[]> {
-    const rows = await this.db.query<{ at: Date; kind: string; actor: string; detail: string }>(
-      `select at, kind, actor, detail from packing_events where unit_uuid = $1 order by at asc, id asc`,
+    const rows = await this.db.query<EventRow>(
+      `select at, kind, actor, detail, scanned from packing_events where unit_uuid = lower($1) order by at asc, id asc`,
       [uuid],
     );
-    return rows.map((r) => ({ at: r.at.toISOString(), kind: r.kind, actor: r.actor, detail: r.detail }));
+    return rows.map(toEntry);
   }
 
-  /** The ring's own lines, plus the order's size request, which came before any ring was attached to it. */
+  /** The ring's own lines, plus what happened on this order without being about that ring. */
   private async packingHistory(uuid: string, orderId: number): Promise<HistoryEntry[]> {
-    const rows = await this.db.query<{ at: Date; kind: string; actor: string; detail: string }>(
-      `select at, kind, actor, detail from packing_events
-        where unit_uuid = $1 or (order_id = $2 and kind = 'size')
+    const rows = await this.db.query<EventRow>(
+      `select at, kind, actor, detail, scanned from packing_events
+        where unit_uuid = $1
+           or (order_id = $2 and kind in ('size', 'label', 'sizer_delivered', 'scan_refused', 'scan_repeated'))
         order by at asc, id asc`,
       [uuid, orderId],
     );
-    return rows.map((r) => ({ at: r.at.toISOString(), kind: r.kind, actor: r.actor, detail: r.detail }));
+    return rows.map(toEntry);
   }
 
   async why(orderId: number): Promise<WhyAnswer> {
     const slip = await this.slip(orderId);
     if (!slip.expectedUuid) throw new ConflictException(`Order ${orderId} has no ring reserved`);
-    const [{ left }] = await this.db.query<{ left: number }>(
-      `select count(*)::int as left from units where size = $1 and status = 'available' and qa = 'passed'`,
+    const [{ free }] = await this.db.query<{ free: number }>(
+      `select count(*)::int as free from units where size = $1 and status = 'available' and qa = 'passed'`,
       [slip.size],
     );
     const waiting = await this.db.query<{ orderId: number; submittedAt: Date }>(
@@ -200,8 +240,9 @@ export class PackingService {
       size: slip.size as number,
       uuid: slip.expectedUuid,
       submittedAt: new Date(slip.sizeSubmittedAt as string).toISOString(),
+      reservedAt: new Date(slip.reservedAt as string).toISOString(),
       history: await this.packingHistory(slip.expectedUuid, orderId),
-      eligibleLeft: left,
+      freeNow: free,
       waiting: waiting.map((w) => ({ orderId: w.orderId, submittedAt: w.submittedAt.toISOString() })),
     });
   }

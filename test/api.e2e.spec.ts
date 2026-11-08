@@ -5,7 +5,8 @@ import { AppModule } from '../src/app.module';
 import { shopifySignature, SHOPIFY_TEST_SECRET, stripeTestHeader } from '../src/channels/webhook.controller';
 import { Db, resetDb } from '../src/db';
 import { PACKER, RING_OK, RING_OTHER, seedDemo } from '../src/seed/seed';
-import { uuidOf } from './support/app';
+import { addRing, services, uuidOf } from './support/app';
+import { sizeAgainstCancel, violations } from './support/scenarios';
 
 describe('HTTP API', () => {
   let app: INestApplication;
@@ -29,7 +30,7 @@ describe('HTTP API', () => {
   const http = () => request(app.getHttpServer());
   const orderCount = async () => (await db.query<{ n: number }>('select count(*)::int as n from orders'))[0].n;
 
-  it('walks one ring from manifest to pair-check', async () => {
+  it('walks one ring from manifest to the eligibility answer', async () => {
     const ring = uuidOf(11);
     await http().post('/manifests').send({ csv: `uuid,size,lot\n${ring},9,L-9\n` }).expect(201);
     await http().post(`/units/${ring}/intake`).send({}).expect(201);
@@ -45,10 +46,10 @@ describe('HTTP API', () => {
     await http().post('/orders/300/sizer-delivered').expect(201);
     await http().post('/orders/300/handoff').send({}).expect(201);
     await http().post('/orders/300/delivered').expect(201);
-    expect((await http().get(`/units/${ring}/pair-check`).expect(200)).body.eligible).toBe(true);
+    expect((await http().get(`/units/${ring}/pairing-eligibility`).expect(200)).body.eligible).toBe(true);
     const history = await http().get(`/units/${ring}/history`).expect(200);
     expect(history.body.map((h: { kind: string }) => h.kind)).toEqual([
-      'manifest', 'intake', 'qa', 'reserved', 'scan_accepted', 'handoff', 'delivered',
+      'manifest', 'intake', 'qa', 'reserved', 'label', 'scan_accepted', 'handoff', 'delivered',
     ]);
   });
 
@@ -57,6 +58,52 @@ describe('HTTP API', () => {
     expect(res.body.message).toBe('Packing blocked. Ring …3A90 belongs to order #099. Expected …7C21.');
     const why = await http().get('/orders/104/why').expect(200);
     expect(why.body.line).toContain('…7C21');
+    const refused = why.body.history.filter((h: { kind: string }) => h.kind === 'scan_refused');
+    expect(refused).toHaveLength(1);
+    expect(refused[0].scanned).toBe(RING_OTHER);
+  });
+
+  it('wrong scan after packing: says so without blocking, and the handoff still goes', async () => {
+    const ok = await http().post('/orders/104/scan').send({ ringId: RING_OK }).expect(201);
+    expect(ok.body.message).toBe('Ready for carrier handoff');
+    const wrong = await http().post('/orders/104/scan').send({ ringId: RING_OTHER }).expect(201);
+    expect(wrong.body).toEqual({
+      outcome: 'rejected',
+      reason: 'already-packed',
+      message: 'Scan rejected. Order #104 is already packed with …7C21.',
+    });
+    await http().post('/orders/104/handoff').send({}).expect(201);
+  });
+
+  it('right scan without a label: says a label is missing, and the handoff is refused until there is one', async () => {
+    await http().post('/orders/104/cancel').expect(201);
+    const scan = await http().post('/orders/105/scan').send({ ringId: RING_OK }).expect(201);
+    expect(scan.body.message).toBe('Packing validated. Create a carrier label before handoff.');
+    const refused = await http().post('/orders/105/handoff').send({}).expect(409);
+    expect(refused.body.message).toBe('Parcel has no label');
+    await http().post('/orders/105/label').send({}).expect(201);
+    await http().post('/orders/105/handoff').send({}).expect(201);
+  });
+
+  it('a size and a cancel in parallel over HTTP never leave a ring stuck', async () => {
+    for (let run = 0; run < 60; run += 1) {
+      const found = await sizeAgainstCancel(db, {
+        size: (id, size) => http().post(`/orders/${id}/size`).send({ size }).then(),
+        cancel: (id) => http().post(`/orders/${id}/cancel`).then(),
+      });
+      expect(found).toEqual([]);
+    }
+  });
+
+  it('the same ring ID in capitals keeps one history', async () => {
+    const ring = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const upper = ring.toUpperCase();
+    await http().post('/manifests').send({ csv: `uuid,size,lot\n${upper},9,L-9\n` }).expect(201);
+    await http().post(`/units/${upper}/intake`).send({}).expect(201);
+    await http().post(`/units/${upper}/qa`).send({ result: 'passed' }).expect(201);
+    const lower = await http().get(`/units/${ring}/history`).expect(200);
+    expect(lower.body.map((h: { kind: string }) => h.kind)).toEqual(['manifest', 'intake', 'qa']);
+    expect((await http().get(`/units/${upper}/history`).expect(200)).body).toEqual(lower.body);
   });
 
   it('cancel over HTTP hands the ring to the waiting order', async () => {
@@ -76,16 +123,20 @@ describe('HTTP API', () => {
     await http().get('/orders/abc/slip').expect(400);
     await http().post('/orders/104/size').send({}).expect(400);
     await http().get('/orders/9999/slip').expect(404);
+    await http().get('/orders/99999999999/slip').expect(404);
+    await http().post('/manifests').send({ csv: 'no header here' }).expect(400);
     await http().get('/orders/105/why').expect(409);
+    await http().post('/orders/99/cancel').expect(201);
+    await http().post('/orders/99/label').send({}).expect(409);
   });
 
   describe('Stripe webhook, replayed locally with a test signature', () => {
-    const payload = (eventId: string, sessionId: string, type = 'checkout.session.completed', name: string | null = 'Test Buyer') =>
+    const payload = (eventId: string, sessionId: string, type = 'checkout.session.completed', name: string | null = 'Test Buyer', paymentStatus = 'paid') =>
       JSON.stringify({
         id: eventId,
         object: 'event',
         type,
-        data: { object: { id: sessionId, customer_details: name ? { name } : null } },
+        data: { object: { id: sessionId, payment_status: paymentStatus, customer_details: name ? { name } : null } },
       });
     const send = (body: string, signature = stripeTestHeader(body)) =>
       http().post('/webhooks/stripe').set('content-type', 'application/json').set('stripe-signature', signature).send(body);
@@ -95,6 +146,30 @@ describe('HTTP API', () => {
       expect(res.body.duplicate).toBe(false);
       const [order] = await db.query(`select customer, channel from orders where id = $1`, [res.body.orderId]);
       expect(order).toEqual({ customer: 'Test Buyer', channel: 'stripe' });
+    });
+
+    it('an unpaid checkout records no payment and reserves nothing, until the delayed payment succeeds', async () => {
+      const unpaid = await send(payload('evt_u1', 'cs_u', 'checkout.session.completed', 'Test Buyer', 'unpaid')).expect(201);
+      const orderId = unpaid.body.orderId;
+      expect(unpaid.body.duplicate).toBe(false);
+      const paidAt = async () => (await db.query('select paid_at from orders where id = $1', [orderId]))[0].paid_at;
+      expect(await paidAt()).toBeNull();
+      const logged = await db.query(`select detail from packing_events where order_id = $1 and kind = 'order'`, [orderId]);
+      expect(logged[0].detail).toContain('Unpaid');
+      await http().post(`/orders/${orderId}/size`).send({ size: 8 }).expect(409);
+
+      const repeat = await send(payload('evt_u1b', 'cs_u', 'checkout.session.completed', 'Test Buyer', 'unpaid')).expect(201);
+      expect(repeat.body).toEqual({ orderId, duplicate: true });
+      expect(await paidAt()).toBeNull();
+
+      const paid = await send(payload('evt_u2', 'cs_u', 'checkout.session.async_payment_succeeded')).expect(201);
+      expect(paid.body).toEqual({ orderId, duplicate: false });
+      expect(await paidAt()).not.toBeNull();
+      await http().post(`/orders/${orderId}/size`).send({ size: 8 }).expect(201);
+
+      const again = await send(payload('evt_u3', 'cs_u', 'checkout.session.async_payment_succeeded')).expect(201);
+      expect(again.body).toEqual({ orderId, duplicate: true });
+      expect(await orderCount()).toBe(4);
     });
 
     it('refuses an altered body', async () => {
@@ -152,6 +227,19 @@ describe('HTTP API', () => {
       await send(body(58), undefined, null).expect(400);
       const ignored = await send(body(59), undefined, 'wh-59', 'orders/create').expect(201);
       expect(ignored.body).toEqual({ ignored: 'orders/create' });
+    });
+
+    it('refuses an order with no ID, so that two such orders cannot merge', async () => {
+      await send(JSON.stringify({ customer: { first_name: 'Ann' } }), undefined, 'wh-a').expect(400);
+      await send(JSON.stringify({ id: null }), undefined, 'wh-b').expect(400);
+      expect(await orderCount()).toBe(3);
+    });
+
+    it('the same webhook ID on another order is refused plainly', async () => {
+      await send(body(61), undefined, 'wh-same').expect(201);
+      const other = await send(body(62), undefined, 'wh-same').expect(409);
+      expect(other.body.message).toContain('another order');
+      expect(await orderCount()).toBe(4);
     });
 
     it('tolerates an order with no customer', async () => {

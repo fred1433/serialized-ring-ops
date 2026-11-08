@@ -6,7 +6,7 @@ const FAILED = 'f40a9e37-1c66-4b7d-8d25-19e3bb704d00';
 const FREE = '11111111-1111-4111-8111-111111111111';
 const SAME_SUFFIX = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa7c21';
 
-const order: ScanOrder = { id: 104, expectedUuid: EXPECTED, validated: false };
+const order: ScanOrder = { id: 104, expectedUuid: EXPECTED, validated: false, labelled: true };
 const units: ScanUnit[] = [
   { uuid: EXPECTED, qa: 'passed', reservedFor: 104 },
   { uuid: OTHER, qa: 'passed', reservedFor: 99 },
@@ -49,7 +49,7 @@ describe('scan check shared by the API and the page', () => {
   });
 
   it('refuses any ring for an order with no reservation', () => {
-    expect(checkScan(FREE, { id: 105, expectedUuid: null, validated: false }, units)).toMatchObject({
+    expect(checkScan(FREE, { id: 105, expectedUuid: null, validated: false, labelled: false }, units)).toMatchObject({
       outcome: 'blocked',
       reason: 'no-reservation',
       message: 'Packing blocked. Order #105 has no ring reserved yet.',
@@ -58,6 +58,21 @@ describe('scan check shared by the API and the page', () => {
 
   it('reads scanner input the way a keyboard wedge sends it', () => {
     expect(checkScan(`  ${EXPECTED.toUpperCase()}\n`, order, units).outcome).toBe('ready');
+  });
+
+  it('says ready only when the parcel is validated and labelled', () => {
+    expect(checkScan(EXPECTED, { ...order, labelled: false }, units)).toEqual({
+      outcome: 'validated-no-label',
+      message: 'Packing validated. Create a carrier label before handoff.',
+    });
+  });
+
+  it('a wrong scan on a packed order is rejected without calling the parcel blocked', () => {
+    const packed = { ...order, validated: true };
+    const message = 'Scan rejected. Order #104 is already packed with …7C21.';
+    expect(checkScan(OTHER, packed, units)).toEqual({ outcome: 'rejected', reason: 'already-packed', message });
+    expect(checkScan(FAILED, packed, units).message).toBe(message);
+    expect(checkScan('7C21', packed, units).message).toBe(message);
   });
 
   it('pads order numbers for reading', () => {

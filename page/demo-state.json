@@ -7,6 +7,7 @@
     "size": 8,
     "sizeSubmittedAt": "2026-11-03T09:12:00.000Z",
     "expectedUuid": "8e2f41c6-3b7a-4d19-a6e2-5f0c91d47c21",
+    "reservedAt": "2026-11-03T09:12:00.000Z",
     "lot": "L-2304",
     "labelCreatedAt": "2026-11-04T08:05:00.000Z",
     "validatedAt": null,
@@ -50,37 +51,56 @@
   ],
   "why": {
     "title": "Why ring …7C21 for order #104",
-    "line": "Order #104 got …7C21, the last size 8 ring ready to ship, because its size came in on Nov 3, 09:12 UTC, before order #105 on Nov 3, 16:40 UTC. Order #105 waits for the next ring.",
+    "line": "Order #104 sent its size on Nov 3, 09:12 UTC and has held …7C21 since Nov 3, 09:12 UTC. No size 8 ring is free now. Order #105 sent its size later, on Nov 3, 16:40 UTC, and waits for the next ring.",
     "history": [
       {
         "at": "2026-10-26T09:10:00.000Z",
         "kind": "manifest",
         "actor": "M. Teller (fictional)",
-        "detail": "Lot L-2304, manifest line 1, size 8"
+        "detail": "Lot L-2304, manifest line 1, size 8",
+        "scanned": null
       },
       {
         "at": "2026-10-26T09:24:00.000Z",
         "kind": "intake",
         "actor": "M. Teller (fictional)",
-        "detail": "Scanned in, lot L-2304"
+        "detail": "Scanned in, lot L-2304",
+        "scanned": null
       },
       {
         "at": "2026-10-26T13:48:00.000Z",
         "kind": "qa",
         "actor": "R. Osei (fictional)",
-        "detail": "QA passed"
+        "detail": "QA passed",
+        "scanned": null
+      },
+      {
+        "at": "2026-11-02T14:40:00.000Z",
+        "kind": "sizer_delivered",
+        "actor": "carrier",
+        "detail": "Sizer delivered (simulated)",
+        "scanned": null
       },
       {
         "at": "2026-11-03T09:12:00.000Z",
         "kind": "size",
         "actor": "customer",
-        "detail": "Size 8 submitted"
+        "detail": "Size 8 submitted",
+        "scanned": null
       },
       {
         "at": "2026-11-03T09:12:00.000Z",
         "kind": "reserved",
         "actor": "system",
-        "detail": "Reserved for order #104"
+        "detail": "Reserved for order #104",
+        "scanned": null
+      },
+      {
+        "at": "2026-11-04T08:05:00.000Z",
+        "kind": "label",
+        "actor": "J. Novak (fictional)",
+        "detail": "Ring label created (fake carrier)",
+        "scanned": null
       }
     ]
   },
@@ -89,31 +109,50 @@
       "at": "2026-10-26T09:10:00.000Z",
       "kind": "manifest",
       "actor": "M. Teller (fictional)",
-      "detail": "Lot L-2304, manifest line 1, size 8"
+      "detail": "Lot L-2304, manifest line 1, size 8",
+      "scanned": null
     },
     {
       "at": "2026-10-26T09:24:00.000Z",
       "kind": "intake",
       "actor": "M. Teller (fictional)",
-      "detail": "Scanned in, lot L-2304"
+      "detail": "Scanned in, lot L-2304",
+      "scanned": null
     },
     {
       "at": "2026-10-26T13:48:00.000Z",
       "kind": "qa",
       "actor": "R. Osei (fictional)",
-      "detail": "QA passed"
+      "detail": "QA passed",
+      "scanned": null
+    },
+    {
+      "at": "2026-11-02T14:40:00.000Z",
+      "kind": "sizer_delivered",
+      "actor": "carrier",
+      "detail": "Sizer delivered (simulated)",
+      "scanned": null
     },
     {
       "at": "2026-11-03T09:12:00.000Z",
       "kind": "size",
       "actor": "customer",
-      "detail": "Size 8 submitted"
+      "detail": "Size 8 submitted",
+      "scanned": null
     },
     {
       "at": "2026-11-03T09:12:00.000Z",
       "kind": "reserved",
       "actor": "system",
-      "detail": "Reserved for order #104"
+      "detail": "Reserved for order #104",
+      "scanned": null
+    },
+    {
+      "at": "2026-11-04T08:05:00.000Z",
+      "kind": "label",
+      "actor": "J. Novak (fictional)",
+      "detail": "Ring label created (fake carrier)",
+      "scanned": null
     }
   ],
   "reservations": [

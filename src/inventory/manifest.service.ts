@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Clock } from '../clock';
 import { Db } from '../db';
 import { logEvent } from '../events';
@@ -22,7 +22,10 @@ export class ManifestService {
 
   /** CSV with the header uuid,size,lot. Replaying a file adds nothing. */
   async importCsv(csv: string, actor: string): Promise<ManifestResult> {
-    const lines = csv.trim().split(/\r?\n/).slice(1);
+    const [header, ...lines] = csv.trim().split(/\r?\n/);
+    if (header.replace(/\s/g, '').toLowerCase() !== 'uuid,size,lot') {
+      throw new BadRequestException('The first line must be the header uuid,size,lot');
+    }
     const result: ManifestResult = { accepted: 0, rejected: [] };
     const seen = new Set<string>();
     await this.db.tx(async (tx) => {
