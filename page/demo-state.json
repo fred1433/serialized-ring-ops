@@ -1,0 +1,135 @@
+{
+  "brand": "Aldane",
+  "packer": "J. Novak (fictional)",
+  "slip": {
+    "orderId": 104,
+    "customer": "A. Reyes",
+    "size": 8,
+    "sizeSubmittedAt": "2026-11-03T09:12:00.000Z",
+    "expectedUuid": "8e2f41c6-3b7a-4d19-a6e2-5f0c91d47c21",
+    "lot": "L-2304",
+    "labelCreatedAt": "2026-11-04T08:05:00.000Z",
+    "validatedAt": null,
+    "handedOffAt": null,
+    "deliveredAt": null,
+    "sizerDeliveredAt": "2026-11-02T14:40:00.000Z"
+  },
+  "shipTo": {
+    "name": "A. Reyes",
+    "street": "210 Placeholder Ave",
+    "city": "Exampleton"
+  },
+  "rings": [
+    {
+      "uuid": "c17d0b52-92ee-4a08-b3f1-70ae6d2c3a90",
+      "qa": "passed",
+      "reservedFor": 99,
+      "lot": "L-2291",
+      "size": 8,
+      "intakeAt": "2026-10-19T08:52:00.000Z",
+      "status": "reserved"
+    },
+    {
+      "uuid": "f40a9e37-1c66-4b7d-8d25-19e3bb704d00",
+      "qa": "failed",
+      "reservedFor": null,
+      "lot": "L-2291",
+      "size": 8,
+      "intakeAt": "2026-10-19T08:40:00.000Z",
+      "status": "qa_failed"
+    },
+    {
+      "uuid": "8e2f41c6-3b7a-4d19-a6e2-5f0c91d47c21",
+      "qa": "passed",
+      "reservedFor": 104,
+      "lot": "L-2304",
+      "size": 8,
+      "intakeAt": "2026-10-26T09:24:00.000Z",
+      "status": "reserved"
+    }
+  ],
+  "why": {
+    "title": "Why ring …7C21 for order #104",
+    "line": "Order #104 got …7C21, the last size 8 ring ready to ship, because its size came in on Nov 3, 09:12 UTC, before order #105 on Nov 3, 16:40 UTC. Order #105 waits for the next ring.",
+    "history": [
+      {
+        "at": "2026-10-26T09:10:00.000Z",
+        "kind": "manifest",
+        "actor": "M. Teller (fictional)",
+        "detail": "Lot L-2304, manifest line 1, size 8"
+      },
+      {
+        "at": "2026-10-26T09:24:00.000Z",
+        "kind": "intake",
+        "actor": "M. Teller (fictional)",
+        "detail": "Scanned in, lot L-2304"
+      },
+      {
+        "at": "2026-10-26T13:48:00.000Z",
+        "kind": "qa",
+        "actor": "R. Osei (fictional)",
+        "detail": "QA passed"
+      },
+      {
+        "at": "2026-11-03T09:12:00.000Z",
+        "kind": "size",
+        "actor": "customer",
+        "detail": "Size 8 submitted"
+      },
+      {
+        "at": "2026-11-03T09:12:00.000Z",
+        "kind": "reserved",
+        "actor": "system",
+        "detail": "Reserved for order #104"
+      }
+    ]
+  },
+  "history": [
+    {
+      "at": "2026-10-26T09:10:00.000Z",
+      "kind": "manifest",
+      "actor": "M. Teller (fictional)",
+      "detail": "Lot L-2304, manifest line 1, size 8"
+    },
+    {
+      "at": "2026-10-26T09:24:00.000Z",
+      "kind": "intake",
+      "actor": "M. Teller (fictional)",
+      "detail": "Scanned in, lot L-2304"
+    },
+    {
+      "at": "2026-10-26T13:48:00.000Z",
+      "kind": "qa",
+      "actor": "R. Osei (fictional)",
+      "detail": "QA passed"
+    },
+    {
+      "at": "2026-11-03T09:12:00.000Z",
+      "kind": "size",
+      "actor": "customer",
+      "detail": "Size 8 submitted"
+    },
+    {
+      "at": "2026-11-03T09:12:00.000Z",
+      "kind": "reserved",
+      "actor": "system",
+      "detail": "Reserved for order #104"
+    }
+  ],
+  "reservations": [
+    {
+      "orderId": 99,
+      "uuid": "c17d0b52-92ee-4a08-b3f1-70ae6d2c3a90"
+    },
+    {
+      "orderId": 104,
+      "uuid": "8e2f41c6-3b7a-4d19-a6e2-5f0c91d47c21"
+    }
+  ],
+  "waiting": [
+    {
+      "orderId": 105,
+      "submittedAt": "2026-11-03T16:40:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Same size, wrong ring</title>
+<meta name="description" content="A packing station on fictional orders. Scan the right size but the wrong ring, and the slip shows why it is blocked.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="7" result="grain"/>
+    <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.1 1.95" result="holes"/>
+    <feComposite in="SourceGraphic" in2="holes" operator="in" result="eaten"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="3" result="wobble"/>
+    <feDisplacementMap in="eaten" in2="wobble" scale="2.4"/>
+  </filter>
+</svg>
+
+<main>
+  <section class="bench" aria-labelledby="page-title">
+    <h1 id="page-title">Same size, wrong ring</h1>
+
+    <div class="layout">
+      <article class="slip" id="slip" aria-label="Packing slip">
+        <header class="slip-head">
+          <h2 id="slip-title"></h2>
+          <p class="demo-mark">Demo · Fictional orders</p>
+        </header>
+
+        <div class="slip-grid">
+          <div class="cell ship">
+            <h3>Ship to</h3>
+            <address id="ship-to"></address>
+            <p class="brand" id="brand"></p>
+          </div>
+          <div class="cell ring-for">
+            <h3>Ring for this order</h3>
+            <p class="expected" id="expected-suffix"></p>
+            <p class="uuid" id="expected-uuid"></p>
+            <p class="meta" id="expected-meta"></p>
+          </div>
+          <div class="cell parcel">
+            <h3>Ring parcel</h3>
+            <ul id="parcel-states"></ul>
+          </div>
+        </div>
+
+        <p class="sizer" id="sizer-line"></p>
+
+        <form class="scan" id="scan-form" autocomplete="off">
+          <label for="scan-input">Scan ring</label>
+          <div class="scan-row">
+            <input id="scan-input" name="ring" type="text" inputmode="text" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Full ring ID, then Enter">
+            <button type="submit">Scan</button>
+          </div>
+        </form>
+
+        <div class="result" id="result" role="status" aria-live="polite">
+          <p id="result-text">Nothing scanned yet.</p>
+          <p id="result-note"></p>
+          <div class="result-actions">
+            <button type="button" id="why-button" class="ink-button" hidden aria-expanded="false" aria-controls="canary">Why this ring?</button>
+            <button type="button" id="reset-button" class="plain-button" hidden>Start over</button>
+          </div>
+        </div>
+
+        <div class="stamp" id="stamp" aria-hidden="true"></div>
+      </article>
+
+      <aside class="rings" aria-label="Rings on the bench">
+        <p class="prompt" id="prompt"></p>
+        <div id="stickers"></div>
+      </aside>
+
+      <section class="canary" id="canary" aria-label="Why this ring" hidden>
+        <h2 id="why-title"></h2>
+        <p class="why-line" id="why-line"></p>
+        <h3>Packing history</h3>
+        <ol class="history" id="history"></ol>
+        <p class="held" id="held"></p>
+        <p class="stops">The flow stops at the pair-check eligibility answer. Bluetooth pairing itself is not part of this demo.</p>
+      </section>
+    </div>
+  </section>
+
+  <section class="proof" aria-labelledby="proof-title">
+    <div class="proof-text">
+      <h2 id="proof-title">Two orders, one ring</h2>
+      <p>The bench above runs in your browser. Who gets the last ring can only be settled by a database, so this part is a recorded result from real PostgreSQL, not a live one.</p>
+      <ol>
+        <li id="step-a"></li>
+        <li id="step-b"></li>
+        <li id="step-c"></li>
+      </ol>
+      <p id="witness-line"></p>
+    </div>
+    <div class="roll" id="roll"></div>
+  </section>
+</main>
+
+<footer>
+  <p class="tech" id="tech-line"></p>
+  <p class="sign">Not in production: one slice of the work, running on fictional orders. Built by Frederic de Lavenne de Choulot. <a href="https://cal.theaipipe.com">Book 15 minutes</a></p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
